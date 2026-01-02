@@ -42,7 +42,9 @@ data class Checks(
     val isAndroidApplication: Boolean? = null,
     val isAndroidLibrary: Boolean? = null,
     val isAndroidProject: Boolean? = null,
-    val usesKapt: Boolean? = null
+    val usesKapt: Boolean? = null,
+    val isRootProject: Boolean? = null,
+    val moduleCount: Int? = null
 )
 
 @Serializable
@@ -176,12 +178,16 @@ private fun printReportSummary(report: AndroidDoctorReport) {
     val generatedAt = report.generatedAt ?: "<unknown>"
     val status = report.status ?: "<unknown>"
 
-    // Target type and kapt usage from checks
+    // Checks
     val isAndroidProject = report.checks?.isAndroidProject == true
     val isAndroidApp = report.checks?.isAndroidApplication == true
     val isAndroidLib = report.checks?.isAndroidLibrary == true
     val usesKapt = report.checks?.usesKapt == true
 
+    val isRootProject = report.checks?.isRootProject == true
+    val moduleCount = report.checks?.moduleCount
+
+    // Derived labels
     val targetType = when {
         isAndroidApp -> "Android Application"
         isAndroidLib -> "Android Library"
@@ -195,14 +201,35 @@ private fun printReportSummary(report: AndroidDoctorReport) {
         "No"
     }
 
+    val rootLabel = if (isRootProject) {
+        "Yes (this is the build root)"
+    } else {
+        "No (subproject)"
+    }
+
+    val moduleCountLabel = moduleCount?.toString() ?: "<unknown>"
+
+    val structureAssessment = when {
+        moduleCount == null -> "Unknown"
+        moduleCount <= 1 -> "Monolith risk (single-module build)"
+        moduleCount in 2..5 -> "Small modular build"
+        moduleCount in 6..20 -> "Modular build"
+        else -> "Large modular build"
+    }
+
     // Known plugins
     val knownPlugins = (report.plugins?.appliedKnownPluginIds).orEmpty()
 
+    // Print summary
     println("Project        : $projectName ($projectPath)")
     println("Generated At   : $generatedAt")
     println("Status         : $status")
     println("Target Type    : $targetType")
     println("Uses Kapt      : $kaptLabel")
+    println("Is Root        : $rootLabel")
+    println("Module Count   : $moduleCountLabel")
+    println("Structure      : $structureAssessment")
+
     println()
     println("Tooling")
     println("  Gradle       : $gradleVersion")

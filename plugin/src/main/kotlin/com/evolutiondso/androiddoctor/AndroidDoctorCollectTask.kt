@@ -19,6 +19,8 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
 
     @TaskAction
     fun run() {
+        val isRootProject = (project == project.rootProject)
+        val moduleCount = project.rootProject.allprojects.size
         val file = reportFile.get().asFile
         file.parentFile.mkdirs()
 
@@ -28,14 +30,10 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         val projectPath = project.path
         val gradleVersion = project.gradle.gradleVersion
         val kotlinStdlibVersion = KotlinVersion.CURRENT.toString()
-        val pluginVersion = project.version.toString()
-
-        // ✅ Check 1: Android plugin detection
+        val pluginVersion = ANDROID_DOCTOR_VERSION
         val isAndroidApplication = project.plugins.hasPlugin("com.android.application")
         val isAndroidLibrary = project.plugins.hasPlugin("com.android.library")
         val isAndroidProject = isAndroidApplication || isAndroidLibrary
-
-        // ✅ Check 2: kapt usage detection (very basic for now)
         val hasKaptPlugin =
             project.plugins.hasPlugin("org.jetbrains.kotlin.kapt") ||
                     project.plugins.hasPlugin("kotlin-kapt")
@@ -47,7 +45,6 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
 
         val usesKapt = hasKaptPlugin || hasKaptConfiguration
 
-        // ✅ Plugins summary (known plugin IDs)
         val knownPluginIds = listOf(
             "com.android.application",
             "com.android.library",
@@ -86,7 +83,9 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
                 "isAndroidApplication": $isAndroidApplication,
                 "isAndroidLibrary": $isAndroidLibrary,
                 "isAndroidProject": $isAndroidProject,
-                "usesKapt": $usesKapt
+                "usesKapt": $usesKapt,
+                "isRootProject": $isRootProject,
+                "moduleCount": $moduleCount
               },
               "plugins": {
                 "appliedKnownPluginIds": [ $appliedKnownPluginsJson ]
