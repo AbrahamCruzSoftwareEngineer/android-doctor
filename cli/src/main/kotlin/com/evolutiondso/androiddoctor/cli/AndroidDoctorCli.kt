@@ -19,6 +19,8 @@ data class AndroidDoctorReport(
     val project: ProjectInfo? = null,
     val tooling: ToolingInfo? = null,
     val status: String? = null,
+    val checks: Checks? = null,
+    val plugins: PluginsInfo? = null,
     val notes: List<String>? = null
 )
 
@@ -33,6 +35,19 @@ data class ToolingInfo(
     val gradleVersion: String? = null,
     val kotlinStdlibVersion: String? = null,
     val androidDoctorPluginVersion: String? = null
+)
+
+@Serializable
+data class Checks(
+    val isAndroidApplication: Boolean? = null,
+    val isAndroidLibrary: Boolean? = null,
+    val isAndroidProject: Boolean? = null,
+    val usesKapt: Boolean? = null
+)
+
+@Serializable
+data class PluginsInfo(
+    val appliedKnownPluginIds: List<String>? = null
 )
 
 private val json = Json {
@@ -91,7 +106,7 @@ private fun resolveReportPath(reportPathArg: String): Path {
         return candidate.normalize()
     }
 
-    // 2) Look for the repo root passed from Gradle (--Dandroiddoctor.repoRoot)
+    // 2) Look for the repo root passed from Gradle (-Dandroiddoctor.repoRoot)
     val repoRootProp = System.getProperty("androiddoctor.repoRoot")
     val repoRoot = if (!repoRootProp.isNullOrBlank()) {
         Paths.get(repoRootProp)
@@ -161,14 +176,46 @@ private fun printReportSummary(report: AndroidDoctorReport) {
     val generatedAt = report.generatedAt ?: "<unknown>"
     val status = report.status ?: "<unknown>"
 
+    // Target type and kapt usage from checks
+    val isAndroidProject = report.checks?.isAndroidProject == true
+    val isAndroidApp = report.checks?.isAndroidApplication == true
+    val isAndroidLib = report.checks?.isAndroidLibrary == true
+    val usesKapt = report.checks?.usesKapt == true
+
+    val targetType = when {
+        isAndroidApp -> "Android Application"
+        isAndroidLib -> "Android Library"
+        isAndroidProject -> "Android (unknown type)"
+        else -> "Non-Android (no AGP plugins detected)"
+    }
+
+    val kaptLabel = if (usesKapt) {
+        "Yes (annotation processing via kapt)"
+    } else {
+        "No"
+    }
+
+    // Known plugins
+    val knownPlugins = (report.plugins?.appliedKnownPluginIds).orEmpty()
+
     println("Project        : $projectName ($projectPath)")
     println("Generated At   : $generatedAt")
     println("Status         : $status")
+    println("Target Type    : $targetType")
+    println("Uses Kapt      : $kaptLabel")
     println()
     println("Tooling")
     println("  Gradle       : $gradleVersion")
     println("  Kotlin       : $kotlinVersion")
     println("  Plugin       : $pluginVersion")
+
+    if (knownPlugins.isNotEmpty()) {
+        println()
+        println("Known Plugins")
+        knownPlugins.forEach { id ->
+            println("  - $id")
+        }
+    }
 
     val notes = report.notes
     if (!notes.isNullOrEmpty()) {
