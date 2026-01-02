@@ -1,6 +1,7 @@
 plugins {
-    kotlin("jvm") version "1.9.24"
+    kotlin("jvm")
     application
+    kotlin("plugin.serialization")
 }
 
 java {
@@ -11,7 +12,11 @@ java {
 
 application {
     mainClass.set("com.evolutiondso.androiddoctor.cli.AndroidDoctorCliKt")
+    applicationDefaultJvmArgs = listOf(
+        "-Dandroiddoctor.repoRoot=${rootProject.rootDir.absolutePath}"
+    )
 }
 
 dependencies {
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 }
