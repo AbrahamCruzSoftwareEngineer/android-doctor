@@ -5,22 +5,6 @@
 
 ---
 
-## 🚧 Project Status
-
-AndroidDoctor is currently in **Phase 0 (Repo + Planning)**.
-
-This repository contains:
-
-- Initial structure  
-- Documentation  
-- Roadmap  
-- Vision and architecture notes  
-
-There is **no Gradle plugin**, **no CLI**, and **no core logic** implemented yet.  
-This stage is intentionally calm and foundational.
-
----
-
 ## 🎯 What is AndroidDoctor?
 
 AndroidDoctor is a developer tool that analyzes Android projects and produces **clear, actionable guidance** about:
