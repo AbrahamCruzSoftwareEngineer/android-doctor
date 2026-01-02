@@ -1,8 +1,9 @@
 package com.evolutiondso.androiddoctor.cli
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -20,6 +21,9 @@ data class AndroidDoctorReport(
     val tooling: ToolingInfo? = null,
     val status: String? = null,
     val checks: Checks? = null,
+    val android: AndroidInfo? = null,
+    val scores: ScoresInfo? = null,
+    val actions: List<ActionInfo>? = null,
     val plugins: PluginsInfo? = null,
     val notes: List<String>? = null
 )
@@ -44,7 +48,36 @@ data class Checks(
     val isAndroidProject: Boolean? = null,
     val usesKapt: Boolean? = null,
     val isRootProject: Boolean? = null,
-    val moduleCount: Int? = null
+    val moduleCount: Int? = null,
+    val configurationCacheEnabled: Boolean? = null
+)
+
+@Serializable
+data class AndroidInfo(
+    val agpVersion: String? = null,
+    val composeEnabled: Boolean? = null
+)
+
+@Serializable
+data class ScoresInfo(
+    val buildHealth: Int? = null,
+    val modernization: Int? = null
+)
+
+@Serializable
+data class ImpactInfo(
+    val buildHealthDelta: Int? = null,
+    val modernizationDelta: Int? = null
+)
+
+@Serializable
+data class ActionInfo(
+    val id: String? = null,
+    val priority: Int? = null,
+    val title: String? = null,
+    val why: String? = null,
+    val how: String? = null,
+    val impact: ImpactInfo? = null
 )
 
 @Serializable
@@ -55,6 +88,12 @@ data class PluginsInfo(
 private val json = Json {
     ignoreUnknownKeys = true
     prettyPrint = false
+}
+
+private val prettyJson = Json {
+    ignoreUnknownKeys = true
+    prettyPrint = true
+    prettyPrintIndent = "  "
 }
 
 fun main(args: Array<String>) {
@@ -88,7 +127,7 @@ fun main(args: Array<String>) {
         println("⚠️  Failed to parse report.json as AndroidDoctorReport.")
         println("    Falling back to raw JSON output.")
         println()
-        printRawJson(content)
+        printRawJsonPretty(content)
         return
     }
 
@@ -96,24 +135,21 @@ fun main(args: Array<String>) {
     println()
     println("Raw JSON:")
     println("----------------------------------------------------")
-    println(content)
+    printRawJsonPretty(content)
     println("----------------------------------------------------")
 }
 
 private fun resolveReportPath(reportPathArg: String): Path {
     val candidate = Paths.get(reportPathArg)
 
-    // 1) If already absolute, use directly
     if (candidate.isAbsolute) {
         return candidate.normalize()
     }
 
-    // 2) Look for the repo root passed from Gradle (-Dandroiddoctor.repoRoot)
     val repoRootProp = System.getProperty("androiddoctor.repoRoot")
     val repoRoot = if (!repoRootProp.isNullOrBlank()) {
         Paths.get(repoRootProp)
     } else {
-        // fallback (less ideal, but safe)
         Paths.get("").toAbsolutePath()
     }
 
@@ -178,16 +214,14 @@ private fun printReportSummary(report: AndroidDoctorReport) {
     val generatedAt = report.generatedAt ?: "<unknown>"
     val status = report.status ?: "<unknown>"
 
-    // Checks
     val isAndroidProject = report.checks?.isAndroidProject == true
     val isAndroidApp = report.checks?.isAndroidApplication == true
     val isAndroidLib = report.checks?.isAndroidLibrary == true
     val usesKapt = report.checks?.usesKapt == true
-
     val isRootProject = report.checks?.isRootProject == true
     val moduleCount = report.checks?.moduleCount
+    val configCacheEnabled = report.checks?.configurationCacheEnabled
 
-    // Derived labels
     val targetType = when {
         isAndroidApp -> "Android Application"
         isAndroidLib -> "Android Library"
@@ -195,18 +229,7 @@ private fun printReportSummary(report: AndroidDoctorReport) {
         else -> "Non-Android (no AGP plugins detected)"
     }
 
-    val kaptLabel = if (usesKapt) {
-        "Yes (annotation processing via kapt)"
-    } else {
-        "No"
-    }
-
-    val rootLabel = if (isRootProject) {
-        "Yes (this is the build root)"
-    } else {
-        "No (subproject)"
-    }
-
+    val kaptLabel = if (usesKapt) "Yes (annotation processing via kapt)" else "No"
     val moduleCountLabel = moduleCount?.toString() ?: "<unknown>"
 
     val structureAssessment = when {
@@ -217,18 +240,87 @@ private fun printReportSummary(report: AndroidDoctorReport) {
         else -> "Large modular build"
     }
 
-    // Known plugins
+    val configCacheLabel = when (configCacheEnabled) {
+        true -> "Enabled"
+        false -> "Disabled"
+        null -> "<unknown>"
+    }
+
+    val agpVersion = report.android?.agpVersion
+    val composeEnabled = report.android?.composeEnabled
+
+    val buildHealthScore = report.scores?.buildHealth
+    val modernizationScore = report.scores?.modernization
+
     val knownPlugins = (report.plugins?.appliedKnownPluginIds).orEmpty()
 
-    // Print summary
     println("Project        : $projectName ($projectPath)")
     println("Generated At   : $generatedAt")
     println("Status         : $status")
     println("Target Type    : $targetType")
     println("Uses Kapt      : $kaptLabel")
-    println("Is Root        : $rootLabel")
+    println("Is Root        : ${if (isRootProject) "Yes (this is the build root)" else "No (subproject)"}")
     println("Module Count   : $moduleCountLabel")
     println("Structure      : $structureAssessment")
+    println("Config Cache   : $configCacheLabel")
+
+    if (agpVersion != null || composeEnabled != null) {
+        println()
+        println("Android")
+        println("  AGP Version  : ${agpVersion ?: "<unknown>"}")
+        val composeLabel = composeEnabled?.let { if (it) "Enabled" else "Disabled" } ?: "<unknown>"
+        println("  Compose      : $composeLabel")
+    }
+
+    if (buildHealthScore != null || modernizationScore != null) {
+        println()
+        println("Scores")
+        println("  Build Health : ${buildHealthScore ?: "<unknown>"} / 100")
+        println("  Modernize    : ${modernizationScore ?: "<unknown>"} / 100")
+    }
+
+    val actions = report.actions.orEmpty()
+    if (actions.isNotEmpty()) {
+        println()
+        println("Top Actions")
+
+        val sorted = actions.sortedWith(
+            compareBy<ActionInfo> { it.priority ?: Int.MAX_VALUE }.thenBy { it.id ?: "" }
+        )
+
+        var totalBuildDelta = 0
+        var totalModernDelta = 0
+
+        sorted.forEachIndexed { index, a ->
+            val title = a.title ?: a.id ?: "Action"
+            val priority = a.priority?.toString() ?: "?"
+            val why = a.why ?: ""
+            val how = a.how ?: ""
+
+            val buildDelta = a.impact?.buildHealthDelta ?: 0
+            val modernDelta = a.impact?.modernizationDelta ?: 0
+
+            totalBuildDelta += buildDelta
+            totalModernDelta += modernDelta
+
+            val impactLabel = buildString {
+                if (buildDelta != 0) append("${formatDelta(buildDelta)} Build Health")
+                if (modernDelta != 0) {
+                    if (isNotEmpty()) append(", ")
+                    append("${formatDelta(modernDelta)} Modernize")
+                }
+            }.ifBlank { "no score estimate" }
+
+            println("  ${index + 1}. [P$priority] $title ($impactLabel)")
+            if (why.isNotBlank()) println("     Why: $why")
+            if (how.isNotBlank()) println("     How: $how")
+        }
+
+        println()
+        println("Estimated score gain (if completed):")
+        println("  Build Health : ${formatDelta(totalBuildDelta)}")
+        println("  Modernize    : ${formatDelta(totalModernDelta)}")
+    }
 
     println()
     println("Tooling")
@@ -254,9 +346,16 @@ private fun printReportSummary(report: AndroidDoctorReport) {
     }
 }
 
-private fun printRawJson(content: String) {
-    println("Raw report.json:")
-    println("----------------------------------------------------")
-    println(content)
-    println("----------------------------------------------------")
+private fun formatDelta(value: Int): String {
+    return if (value >= 0) "+$value" else value.toString()
+}
+
+private fun printRawJsonPretty(content: String) {
+    val pretty = try {
+        val element: JsonElement = Json.parseToJsonElement(content)
+        prettyJson.encodeToString(element)
+    } catch (_: Throwable) {
+        content.trimIndent()
+    }
+    println(pretty)
 }

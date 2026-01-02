@@ -1,6 +1,7 @@
 package com.evolutiondso.androiddoctor
 
 import org.gradle.api.DefaultTask
+import org.gradle.api.Project
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
@@ -19,21 +20,22 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
 
     @TaskAction
     fun run() {
-        val isRootProject = (project == project.rootProject)
-        val moduleCount = project.rootProject.allprojects.size
         val file = reportFile.get().asFile
         file.parentFile.mkdirs()
 
-        // Basic deterministic fields
         val now = Instant.now().toString()
         val projectName = project.name
         val projectPath = project.path
         val gradleVersion = project.gradle.gradleVersion
         val kotlinStdlibVersion = KotlinVersion.CURRENT.toString()
         val pluginVersion = ANDROID_DOCTOR_VERSION
+
+        // Android detection
         val isAndroidApplication = project.plugins.hasPlugin("com.android.application")
         val isAndroidLibrary = project.plugins.hasPlugin("com.android.library")
         val isAndroidProject = isAndroidApplication || isAndroidLibrary
+
+        // kapt usage
         val hasKaptPlugin =
             project.plugins.hasPlugin("org.jetbrains.kotlin.kapt") ||
                     project.plugins.hasPlugin("kotlin-kapt")
@@ -45,6 +47,27 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
 
         val usesKapt = hasKaptPlugin || hasKaptConfiguration
 
+        // Root + module count
+        val isRootProject = (project == project.rootProject)
+        val moduleCount = project.rootProject.allprojects.size
+
+        // Config cache (new Gradle BuildFeatures API via reflection)
+        val configurationCacheEnabled: Boolean? = readConfigurationCacheEnabledOrNull(project)
+
+        // Android signals (safe reflection)
+        val agpVersion = readAgpVersionOrNull()
+        val composeEnabled = readComposeEnabledOrNull(project)
+
+        // Scores (B: unknown = small penalty)
+        val scores = computeScores(
+            isAndroidProject = isAndroidProject,
+            usesKapt = usesKapt,
+            moduleCount = moduleCount,
+            configurationCacheEnabled = configurationCacheEnabled,
+            composeEnabled = composeEnabled
+        )
+
+        // Known plugins
         val knownPluginIds = listOf(
             "com.android.application",
             "com.android.library",
@@ -61,9 +84,24 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
             project.plugins.hasPlugin(id)
         }
 
-        val appliedKnownPluginsJson = appliedKnownPluginIds.joinToString(separator = ",") { id ->
+        val appliedKnownPluginsJson = appliedKnownPluginIds.joinToString(separator = ", ") { id ->
             "\"$id\""
         }
+
+        // Actions (doctor recommendations)
+        val actions = buildTopActions(
+            moduleCount = moduleCount,
+            usesKapt = usesKapt,
+            configurationCacheEnabled = configurationCacheEnabled,
+            isAndroidProject = isAndroidProject,
+            composeEnabled = composeEnabled
+        )
+
+        val actionsJson = actionsToJson(actions)
+
+        val agpVersionJson = agpVersion?.let { "\"$it\"" } ?: "null"
+        val composeEnabledJson = composeEnabled?.toString() ?: "null"
+        val configCacheJson = configurationCacheEnabled?.toString() ?: "null"
 
         val json = """
             {
@@ -85,8 +123,18 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
                 "isAndroidProject": $isAndroidProject,
                 "usesKapt": $usesKapt,
                 "isRootProject": $isRootProject,
-                "moduleCount": $moduleCount
+                "moduleCount": $moduleCount,
+                "configurationCacheEnabled": $configCacheJson
               },
+              "android": {
+                "agpVersion": $agpVersionJson,
+                "composeEnabled": $composeEnabledJson
+              },
+              "scores": {
+                "buildHealth": ${scores.buildHealth},
+                "modernization": ${scores.modernization}
+              },
+              "actions": $actionsJson,
               "plugins": {
                 "appliedKnownPluginIds": [ $appliedKnownPluginsJson ]
               },
@@ -98,7 +146,264 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         """.trimIndent()
 
         file.writeText(json)
-
         logger.lifecycle("AndroidDoctor: report written to ${file.absolutePath}")
+    }
+}
+
+private data class Scores(
+    val buildHealth: Int,
+    val modernization: Int
+)
+
+private fun computeScores(
+    isAndroidProject: Boolean,
+    usesKapt: Boolean,
+    moduleCount: Int,
+    configurationCacheEnabled: Boolean?,
+    composeEnabled: Boolean?
+): Scores {
+    // Build Health Score: build speed + scalability risk
+    var build = 100
+
+    when (configurationCacheEnabled) {
+        true -> Unit
+        false -> build -= 10
+        null -> build -= 3 // B: unknown small penalty
+    }
+
+    if (usesKapt) build -= 20
+    if (moduleCount <= 1) build -= 10
+    build = build.coerceIn(0, 100)
+
+    // Modernization Score: modern posture
+    var modern = 100
+
+    when (configurationCacheEnabled) {
+        true -> Unit
+        false -> modern -= 5
+        null -> modern -= 2 // B: unknown small penalty
+    }
+
+    if (usesKapt) modern -= 10
+
+    if (isAndroidProject) {
+        when (composeEnabled) {
+            true -> Unit
+            false -> modern -= 10
+            null -> modern -= 3
+        }
+    }
+
+    modern = modern.coerceIn(0, 100)
+
+    return Scores(buildHealth = build, modernization = modern)
+}
+
+private data class Impact(
+    val buildHealthDelta: Int,
+    val modernizationDelta: Int
+)
+
+private data class Action(
+    val id: String,
+    val priority: Int,
+    val title: String,
+    val why: String,
+    val how: String,
+    val impact: Impact
+)
+
+private fun buildTopActions(
+    moduleCount: Int,
+    usesKapt: Boolean,
+    configurationCacheEnabled: Boolean?,
+    isAndroidProject: Boolean,
+    composeEnabled: Boolean?
+): List<Action> {
+    val actions = mutableListOf<Action>()
+
+    // 1) Monolith risk
+    if (moduleCount <= 1) {
+        actions += Action(
+            id = "MODULARIZE_MONOLITH",
+            priority = 1,
+            title = "Consider modularizing the build",
+            why = "Single-module builds often get slower as code grows and reduce parallelism.",
+            how = "Start by extracting a :core module, then move one feature into its own module.",
+            impact = Impact(
+                buildHealthDelta = 10,
+                modernizationDelta = 0
+            )
+        )
+    }
+
+    // 2) Configuration cache
+    when (configurationCacheEnabled) {
+        false -> actions += Action(
+            id = "ENABLE_CONFIGURATION_CACHE",
+            priority = 1,
+            title = "Enable Gradle configuration cache",
+            why = "Configuration cache can significantly reduce configuration time on repeated builds.",
+            how = "Try enabling it and fix any reported incompatibilities; consider setting org.gradle.configuration-cache=true.",
+            impact = Impact(
+                buildHealthDelta = 10,
+                modernizationDelta = 5
+            )
+        )
+
+        null -> actions += Action(
+            id = "VERIFY_CONFIGURATION_CACHE",
+            priority = 2,
+            title = "Verify configuration cache support",
+            why = "AndroidDoctor could not determine if configuration cache is enabled for this build.",
+            how = "Try enabling it and confirming it’s effective; then consider opting in via gradle.properties.",
+            impact = Impact(
+                // Matches our scoring unknown penalty + gives a small “modern posture” benefit
+                buildHealthDelta = 3,
+                modernizationDelta = 2
+            )
+        )
+
+        true -> Unit
+    }
+
+    // 3) kapt -> KSP
+    if (usesKapt) {
+        actions += Action(
+            id = "MIGRATE_KAPT_TO_KSP",
+            priority = 2,
+            title = "Consider migrating kapt to KSP",
+            why = "kapt can slow builds due to Java stub generation and annotation processing overhead.",
+            how = "Where supported, migrate libraries to KSP and remove kapt usage incrementally.",
+            impact = Impact(
+                buildHealthDelta = 20,
+                modernizationDelta = 10
+            )
+        )
+    }
+
+    // 4) Compose suggestion (only if Android)
+    if (isAndroidProject) {
+        if (composeEnabled == false) {
+            actions += Action(
+                id = "EVALUATE_COMPOSE_ADOPTION",
+                priority = 3,
+                title = "Evaluate adopting Jetpack Compose for new UI",
+                why = "Compose can improve UI iteration speed and reduce XML complexity over time.",
+                how = "Start with new screens or isolated components; keep migration incremental and measurable.",
+                impact = Impact(
+                    buildHealthDelta = 0,
+                    modernizationDelta = 10
+                )
+            )
+        } else if (composeEnabled == null) {
+            actions += Action(
+                id = "DETECT_COMPOSE_CONFIGURATION",
+                priority = 3,
+                title = "Confirm Compose configuration",
+                why = "AndroidDoctor could not determine whether Compose is enabled.",
+                how = "Check android.buildFeatures.compose and your Compose compiler configuration.",
+                impact = Impact(
+                    buildHealthDelta = 0,
+                    modernizationDelta = 3
+                )
+            )
+        }
+    }
+
+    // Sort: priority ascending, then stable by id
+    return actions.sortedWith(compareBy<Action> { it.priority }.thenBy { it.id })
+        .take(5)
+}
+
+private fun actionsToJson(actions: List<Action>): String {
+    if (actions.isEmpty()) return "[]"
+
+    fun esc(s: String): String =
+        s.replace("\\", "\\\\").replace("\"", "\\\"")
+
+    val items = actions.joinToString(separator = ",\n") { a ->
+        """
+        {
+          "id": "${esc(a.id)}",
+          "priority": ${a.priority},
+          "title": "${esc(a.title)}",
+          "why": "${esc(a.why)}",
+          "how": "${esc(a.how)}",
+          "impact": {
+            "buildHealthDelta": ${a.impact.buildHealthDelta},
+            "modernizationDelta": ${a.impact.modernizationDelta}
+          }
+        }
+        """.trimIndent()
+    }
+
+    return "[\n$items\n]"
+}
+
+/**
+ * Tries to read AGP version without adding a dependency on AGP.
+ * Returns null for non-Android projects (AGP not on classpath).
+ */
+private fun readAgpVersionOrNull(): String? {
+    return try {
+        val clazz = Class.forName("com.android.Version")
+        val field = clazz.getField("ANDROID_GRADLE_PLUGIN_VERSION")
+        field.get(null)?.toString()
+    } catch (_: Throwable) {
+        null
+    }
+}
+
+/**
+ * Attempts to detect android.buildFeatures.compose via reflection.
+ * Returns:
+ * - true/false when detectable
+ * - null when not Android / API shape unknown
+ */
+private fun readComposeEnabledOrNull(project: Project): Boolean? {
+    val androidExt = project.extensions.findByName("android") ?: return null
+
+    return try {
+        val getBuildFeatures = androidExt.javaClass.methods.firstOrNull { it.name == "getBuildFeatures" }
+            ?: return null
+        val buildFeatures = getBuildFeatures.invoke(androidExt) ?: return null
+
+        val getCompose = buildFeatures.javaClass.methods.firstOrNull { it.name == "getCompose" }
+            ?: return null
+
+        (getCompose.invoke(buildFeatures) as? Boolean)
+    } catch (_: Throwable) {
+        null
+    }
+}
+
+/**
+ * Gradle BuildFeatures -> configurationCache -> enabled.
+ * Uses reflection to remain compatible across Gradle versions / contexts.
+ */
+private fun readConfigurationCacheEnabledOrNull(project: Project): Boolean? {
+    return try {
+        val gradle = project.gradle
+
+        val getBuildFeatures = gradle.javaClass.methods
+            .firstOrNull { it.name == "getBuildFeatures" && it.parameterCount == 0 }
+            ?: return null
+
+        val buildFeatures = getBuildFeatures.invoke(gradle) ?: return null
+
+        val getConfigurationCache = buildFeatures.javaClass.methods
+            .firstOrNull { it.name == "getConfigurationCache" && it.parameterCount == 0 }
+            ?: return null
+
+        val configCacheFeature = getConfigurationCache.invoke(buildFeatures) ?: return null
+
+        val enabledMethod = configCacheFeature.javaClass.methods.firstOrNull {
+            (it.name == "isEnabled" || it.name == "getEnabled") && it.parameterCount == 0
+        } ?: return null
+
+        enabledMethod.invoke(configCacheFeature) as? Boolean
+    } catch (_: Throwable) {
+        null
     }
 }
