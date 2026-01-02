@@ -2,12 +2,6 @@
   <img src="docs/branding/android-doctor-banner.png" alt="AndroidDoctor" />
 </p>
 
-<h1 align="center">AndroidDoctor</h1>
-
-<p align="center">
-  Diagnose. Modernize. Ship Faster.
-</p>
-
 # 📱 AndroidDoctor
 
 > **Advisory tool for Android build health, performance, and Jetpack Compose modernization.**  
