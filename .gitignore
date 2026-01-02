@@ -1,21 +1,112 @@
-.gradle
+# =========================================================
+# AndroidDoctor Repository .gitignore
+# Kotlin + Gradle + IntelliJ + JVM Tooling
+# =========================================================
+
+# ---------------------------------------
+# IntelliJ IDEA / Android Studio
+# ---------------------------------------
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# User-specific IDE files
+*.sw*
+*.suo
+*.user
+*.rsuser
+
+# ---------------------------------------
+# Gradle
+# ---------------------------------------
+.gradle/
+build/
 **/build/
-!**/src/**/build/
+!gradle/wrapper/gradle-wrapper.jar
 
-# Ignore Gradle GUI config
-gradle-app.setting
+# Ignore Gradle local configs
+local.properties
 
-# Avoid ignoring Gradle wrapper jar file (.jar files are usually ignored)
-!gradle-wrapper.jar
+# ---------------------------------------
+# Kotlin / JVM
+# ---------------------------------------
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
 
-# Avoid ignore Gradle wrappper properties
-!gradle-wrapper.properties
+# JVM crash logs
+hs_err_pid*
+replay_pid*
 
-# Cache of project
-.gradletasknamecache
+# ---------------------------------------
+# Logs
+# ---------------------------------------
+*.log
+logs/
 
-# Eclipse Gradle plugin generated files
-# Eclipse Core
-.project
-# JDT-specific (Eclipse Java Development Tools)
-.classpath
+# ---------------------------------------
+# OS-generated files
+# ---------------------------------------
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.cache/
+
+# ---------------------------------------
+# Temp files
+# ---------------------------------------
+*.tmp
+*.temp
+*.bak
+*.orig
+*.rej
+
+# JetBrains modules cache
+.idea_modules/
+
+# ---------------------------------------
+# Maven (if ever used for docs or CI)
+# ---------------------------------------
+.mvn/
+target/
+
+# ---------------------------------------
+# Kotlin DSL build script caches
+# ---------------------------------------
+.gradle.kts.classpath
+
+# ---------------------------------------
+# Optional: JetBrains Fleet
+# ---------------------------------------
+.fleet/
+
+# ---------------------------------------
+# Optional: VS Code
+# ---------------------------------------
+.vscode/
+.history/
+
+# ---------------------------------------
+# Optional: Node (in case docs site emerges)
+# ---------------------------------------
+node_modules/
+dist/
