@@ -4,8 +4,7 @@
 
 # 📱 AndroidDoctor
 
-> **Advisory tool for Android build health, performance, and Jetpack Compose modernization.**  
-> *Status: Early planning — architecture & docs only. No implementation yet.*
+> **Advisory tool for Android build health, performance, and Jetpack Compose modernization.**
 
 ---
 
@@ -61,8 +60,8 @@ It will **consume structured findings only** — the deterministic plugin remain
 
 ```text
 android-doctor/
-├─ plugin/        # Gradle plugin (Collector) — placeholder
-├─ cli/           # CLI Reporter               — placeholder
+├─ plugin/        # Gradle plugin (Collector)
+├─ cli/           # CLI Reporter            
 ├─ docs/          # Roadmap, vision, architecture, schema
-├─ samples/       # Sample Android projects (future)
+├─ samples/       # Sample Android projects
 └─ README.md      # You are here
