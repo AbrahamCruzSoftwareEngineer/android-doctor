@@ -1,5 +1,6 @@
 package com.evolutiondso.androiddoctor.cli
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -74,6 +75,8 @@ data class ImpactInfo(
 data class ActionInfo(
     val id: String? = null,
     val priority: Int? = null,
+    val severity: String? = null, // HIGH | MEDIUM | LOW
+    val effort: String? = null,   // S | M | L
     val title: String? = null,
     val why: String? = null,
     val how: String? = null,
@@ -90,6 +93,7 @@ private val json = Json {
     prettyPrint = false
 }
 
+@OptIn(ExperimentalSerializationApi::class)
 private val prettyJson = Json {
     ignoreUnknownKeys = true
     prettyPrint = true
@@ -132,6 +136,7 @@ fun main(args: Array<String>) {
     }
 
     printReportSummary(report)
+
     println()
     println("Raw JSON:")
     println("----------------------------------------------------")
@@ -141,18 +146,10 @@ fun main(args: Array<String>) {
 
 private fun resolveReportPath(reportPathArg: String): Path {
     val candidate = Paths.get(reportPathArg)
-
-    if (candidate.isAbsolute) {
-        return candidate.normalize()
-    }
+    if (candidate.isAbsolute) return candidate.normalize()
 
     val repoRootProp = System.getProperty("androiddoctor.repoRoot")
-    val repoRoot = if (!repoRootProp.isNullOrBlank()) {
-        Paths.get(repoRootProp)
-    } else {
-        Paths.get("").toAbsolutePath()
-    }
-
+    val repoRoot = if (!repoRootProp.isNullOrBlank()) Paths.get(repoRootProp) else Paths.get("").toAbsolutePath()
     return repoRoot.resolve(reportPathArg).normalize()
 }
 
@@ -170,12 +167,10 @@ private fun parseArgs(args: List<String>): CliConfig {
                 }
                 reportPath = iter.next()
             }
-
             "--help", "-h" -> {
                 printUsage()
                 exitProcess(0)
             }
-
             else -> {
                 println("Unknown argument: $arg")
                 printUsage()
@@ -264,7 +259,8 @@ private fun printReportSummary(report: AndroidDoctorReport) {
     println("Structure      : $structureAssessment")
     println("Config Cache   : $configCacheLabel")
 
-    if (agpVersion != null || composeEnabled != null) {
+    // Compose check surfaced (Android-only)
+    if (isAndroidProject || agpVersion != null || composeEnabled != null) {
         println()
         println("Android")
         println("  AGP Version  : ${agpVersion ?: "<unknown>"}")
@@ -294,6 +290,8 @@ private fun printReportSummary(report: AndroidDoctorReport) {
         sorted.forEachIndexed { index, a ->
             val title = a.title ?: a.id ?: "Action"
             val priority = a.priority?.toString() ?: "?"
+            val severity = a.severity ?: "?"
+            val effort = a.effort ?: "?"
             val why = a.why ?: ""
             val how = a.how ?: ""
 
@@ -311,7 +309,7 @@ private fun printReportSummary(report: AndroidDoctorReport) {
                 }
             }.ifBlank { "no score estimate" }
 
-            println("  ${index + 1}. [P$priority] $title ($impactLabel)")
+            println("  ${index + 1}. [P$priority][$severity][$effort] $title ($impactLabel)")
             if (why.isNotBlank()) println("     Why: $why")
             if (how.isNotBlank()) println("     How: $how")
         }
@@ -320,6 +318,9 @@ private fun printReportSummary(report: AndroidDoctorReport) {
         println("Estimated score gain (if completed):")
         println("  Build Health : ${formatDelta(totalBuildDelta)}")
         println("  Modernize    : ${formatDelta(totalModernDelta)}")
+
+        // 7/30/90 roadmap derived from effort
+        printRoadmap(sorted)
     }
 
     println()
@@ -346,9 +347,41 @@ private fun printReportSummary(report: AndroidDoctorReport) {
     }
 }
 
-private fun formatDelta(value: Int): String {
-    return if (value >= 0) "+$value" else value.toString()
+private fun printRoadmap(actions: List<ActionInfo>) {
+    fun effortBucket(effort: String?): String = when (effort) {
+        "S" -> "Next 7 days"
+        "M" -> "Next 30 days"
+        "L" -> "Next 90 days"
+        else -> "Unscheduled"
+    }
+
+    val grouped = actions.groupBy { effortBucket(it.effort) }
+
+    val order = listOf("Next 7 days", "Next 30 days", "Next 90 days", "Unscheduled")
+
+    println()
+    println("Suggested Roadmap (7/30/90)")
+    println("---------------------------")
+
+    order.forEach { bucket ->
+        val items = grouped[bucket].orEmpty()
+        if (items.isEmpty()) return@forEach
+
+        println(bucket + ":")
+
+        items.sortedWith(compareBy<ActionInfo> { it.priority ?: Int.MAX_VALUE }.thenBy { it.id ?: "" })
+            .forEach { a ->
+                val title = a.title ?: a.id ?: "Action"
+                val severity = a.severity ?: "?"
+                val effort = a.effort ?: "?"
+                println("  - [$severity][$effort] $title")
+            }
+
+        println()
+    }
 }
+
+private fun formatDelta(value: Int): String = if (value >= 0) "+$value" else value.toString()
 
 private fun printRawJsonPretty(content: String) {
     val pretty = try {

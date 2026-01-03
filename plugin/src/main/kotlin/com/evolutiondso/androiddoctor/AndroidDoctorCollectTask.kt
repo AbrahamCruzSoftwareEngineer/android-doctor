@@ -162,26 +162,24 @@ private fun computeScores(
     configurationCacheEnabled: Boolean?,
     composeEnabled: Boolean?
 ): Scores {
-    // Build Health Score: build speed + scalability risk
     var build = 100
 
     when (configurationCacheEnabled) {
         true -> Unit
         false -> build -= 10
-        null -> build -= 3 // B: unknown small penalty
+        null -> build -= 3
     }
 
     if (usesKapt) build -= 20
     if (moduleCount <= 1) build -= 10
     build = build.coerceIn(0, 100)
 
-    // Modernization Score: modern posture
     var modern = 100
 
     when (configurationCacheEnabled) {
         true -> Unit
         false -> modern -= 5
-        null -> modern -= 2 // B: unknown small penalty
+        null -> modern -= 2
     }
 
     if (usesKapt) modern -= 10
@@ -207,6 +205,8 @@ private data class Impact(
 private data class Action(
     val id: String,
     val priority: Int,
+    val severity: String, // HIGH | MEDIUM | LOW
+    val effort: String,   // S | M | L
     val title: String,
     val why: String,
     val how: String,
@@ -222,97 +222,89 @@ private fun buildTopActions(
 ): List<Action> {
     val actions = mutableListOf<Action>()
 
-    // 1) Monolith risk
     if (moduleCount <= 1) {
         actions += Action(
             id = "MODULARIZE_MONOLITH",
             priority = 1,
+            severity = "HIGH",
+            effort = "M",
             title = "Consider modularizing the build",
             why = "Single-module builds often get slower as code grows and reduce parallelism.",
             how = "Start by extracting a :core module, then move one feature into its own module.",
-            impact = Impact(
-                buildHealthDelta = 10,
-                modernizationDelta = 0
-            )
+            impact = Impact(buildHealthDelta = 10, modernizationDelta = 0)
         )
     }
 
-    // 2) Configuration cache
     when (configurationCacheEnabled) {
         false -> actions += Action(
             id = "ENABLE_CONFIGURATION_CACHE",
             priority = 1,
+            severity = "HIGH",
+            effort = "S",
             title = "Enable Gradle configuration cache",
             why = "Configuration cache can significantly reduce configuration time on repeated builds.",
-            how = "Try enabling it and fix any reported incompatibilities; consider setting org.gradle.configuration-cache=true.",
-            impact = Impact(
-                buildHealthDelta = 10,
-                modernizationDelta = 5
-            )
+            how = "Enable it, run a build, then fix incompatibilities reported by Gradle. Consider org.gradle.configuration-cache=true.",
+            impact = Impact(buildHealthDelta = 10, modernizationDelta = 5)
         )
 
         null -> actions += Action(
             id = "VERIFY_CONFIGURATION_CACHE",
             priority = 2,
+            severity = "MEDIUM",
+            effort = "S",
             title = "Verify configuration cache support",
             why = "AndroidDoctor could not determine if configuration cache is enabled for this build.",
             how = "Try enabling it and confirming it’s effective; then consider opting in via gradle.properties.",
-            impact = Impact(
-                // Matches our scoring unknown penalty + gives a small “modern posture” benefit
-                buildHealthDelta = 3,
-                modernizationDelta = 2
-            )
+            impact = Impact(buildHealthDelta = 3, modernizationDelta = 2)
         )
 
         true -> Unit
     }
 
-    // 3) kapt -> KSP
     if (usesKapt) {
         actions += Action(
             id = "MIGRATE_KAPT_TO_KSP",
             priority = 2,
+            severity = "MEDIUM",
+            effort = "M",
             title = "Consider migrating kapt to KSP",
             why = "kapt can slow builds due to Java stub generation and annotation processing overhead.",
             how = "Where supported, migrate libraries to KSP and remove kapt usage incrementally.",
-            impact = Impact(
-                buildHealthDelta = 20,
-                modernizationDelta = 10
-            )
+            impact = Impact(buildHealthDelta = 20, modernizationDelta = 10)
         )
     }
 
-    // 4) Compose suggestion (only if Android)
+    // Compose check -> action (Android-only)
     if (isAndroidProject) {
-        if (composeEnabled == false) {
-            actions += Action(
+        when (composeEnabled) {
+            false -> actions += Action(
                 id = "EVALUATE_COMPOSE_ADOPTION",
                 priority = 3,
+                severity = "LOW",
+                effort = "M",
                 title = "Evaluate adopting Jetpack Compose for new UI",
                 why = "Compose can improve UI iteration speed and reduce XML complexity over time.",
                 how = "Start with new screens or isolated components; keep migration incremental and measurable.",
-                impact = Impact(
-                    buildHealthDelta = 0,
-                    modernizationDelta = 10
-                )
+                impact = Impact(buildHealthDelta = 0, modernizationDelta = 10)
             )
-        } else if (composeEnabled == null) {
-            actions += Action(
+
+            null -> actions += Action(
                 id = "DETECT_COMPOSE_CONFIGURATION",
                 priority = 3,
+                severity = "LOW",
+                effort = "S",
                 title = "Confirm Compose configuration",
                 why = "AndroidDoctor could not determine whether Compose is enabled.",
                 how = "Check android.buildFeatures.compose and your Compose compiler configuration.",
-                impact = Impact(
-                    buildHealthDelta = 0,
-                    modernizationDelta = 3
-                )
+                impact = Impact(buildHealthDelta = 0, modernizationDelta = 3)
             )
+
+            true -> Unit
         }
     }
 
-    // Sort: priority ascending, then stable by id
-    return actions.sortedWith(compareBy<Action> { it.priority }.thenBy { it.id })
+    return actions
+        .sortedWith(compareBy<Action> { it.priority }.thenBy { it.id })
         .take(5)
 }
 
@@ -327,6 +319,8 @@ private fun actionsToJson(actions: List<Action>): String {
         {
           "id": "${esc(a.id)}",
           "priority": ${a.priority},
+          "severity": "${esc(a.severity)}",
+          "effort": "${esc(a.effort)}",
           "title": "${esc(a.title)}",
           "why": "${esc(a.why)}",
           "how": "${esc(a.how)}",
@@ -341,10 +335,6 @@ private fun actionsToJson(actions: List<Action>): String {
     return "[\n$items\n]"
 }
 
-/**
- * Tries to read AGP version without adding a dependency on AGP.
- * Returns null for non-Android projects (AGP not on classpath).
- */
 private fun readAgpVersionOrNull(): String? {
     return try {
         val clazz = Class.forName("com.android.Version")
@@ -355,12 +345,6 @@ private fun readAgpVersionOrNull(): String? {
     }
 }
 
-/**
- * Attempts to detect android.buildFeatures.compose via reflection.
- * Returns:
- * - true/false when detectable
- * - null when not Android / API shape unknown
- */
 private fun readComposeEnabledOrNull(project: Project): Boolean? {
     val androidExt = project.extensions.findByName("android") ?: return null
 
@@ -378,10 +362,6 @@ private fun readComposeEnabledOrNull(project: Project): Boolean? {
     }
 }
 
-/**
- * Gradle BuildFeatures -> configurationCache -> enabled.
- * Uses reflection to remain compatible across Gradle versions / contexts.
- */
 private fun readConfigurationCacheEnabledOrNull(project: Project): Boolean? {
     return try {
         val gradle = project.gradle
