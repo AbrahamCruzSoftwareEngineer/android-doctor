@@ -14,6 +14,8 @@ data class CliConfig(
     val reportPath: String?
 )
 
+private const val UNKNOWN = "<unknown>"
+
 @Serializable
 data class AndroidDoctorReport(
     val schemaVersion: Int? = null,
@@ -75,8 +77,8 @@ data class ImpactInfo(
 data class ActionInfo(
     val id: String? = null,
     val priority: Int? = null,
-    val severity: String? = null, // HIGH | MEDIUM | LOW
-    val effort: String? = null,   // S | M | L
+    val severity: String? = null,
+    val effort: String? = null,
     val title: String? = null,
     val why: String? = null,
     val how: String? = null,
@@ -149,7 +151,8 @@ private fun resolveReportPath(reportPathArg: String): Path {
     if (candidate.isAbsolute) return candidate.normalize()
 
     val repoRootProp = System.getProperty("androiddoctor.repoRoot")
-    val repoRoot = if (!repoRootProp.isNullOrBlank()) Paths.get(repoRootProp) else Paths.get("").toAbsolutePath()
+    val repoRoot = if (!repoRootProp.isNullOrBlank()) Paths.get(repoRootProp) else Paths.get("")
+        .toAbsolutePath()
     return repoRoot.resolve(reportPathArg).normalize()
 }
 
@@ -167,10 +170,12 @@ private fun parseArgs(args: List<String>): CliConfig {
                 }
                 reportPath = iter.next()
             }
+
             "--help", "-h" -> {
                 printUsage()
                 exitProcess(0)
             }
+
             else -> {
                 println("Unknown argument: $arg")
                 printUsage()
@@ -201,13 +206,13 @@ private fun printReportSummary(report: AndroidDoctorReport) {
     println("AndroidDoctor Report Summary")
     println("----------------------------")
 
-    val projectName = report.project?.name ?: "<unknown>"
-    val projectPath = report.project?.path ?: "<unknown>"
-    val gradleVersion = report.tooling?.gradleVersion ?: "<unknown>"
-    val kotlinVersion = report.tooling?.kotlinStdlibVersion ?: "<unknown>"
-    val pluginVersion = report.tooling?.androidDoctorPluginVersion ?: "<unknown>"
-    val generatedAt = report.generatedAt ?: "<unknown>"
-    val status = report.status ?: "<unknown>"
+    val projectName = report.project?.name ?: UNKNOWN
+    val projectPath = report.project?.path ?: UNKNOWN
+    val gradleVersion = report.tooling?.gradleVersion ?: UNKNOWN
+    val kotlinVersion = report.tooling?.kotlinStdlibVersion ?: UNKNOWN
+    val pluginVersion = report.tooling?.androidDoctorPluginVersion ?: UNKNOWN
+    val generatedAt = report.generatedAt ?: UNKNOWN
+    val status = report.status ?: UNKNOWN
 
     val isAndroidProject = report.checks?.isAndroidProject == true
     val isAndroidApp = report.checks?.isAndroidApplication == true
@@ -225,7 +230,7 @@ private fun printReportSummary(report: AndroidDoctorReport) {
     }
 
     val kaptLabel = if (usesKapt) "Yes (annotation processing via kapt)" else "No"
-    val moduleCountLabel = moduleCount?.toString() ?: "<unknown>"
+    val moduleCountLabel = moduleCount?.toString() ?: UNKNOWN
 
     val structureAssessment = when {
         moduleCount == null -> "Unknown"
@@ -238,7 +243,7 @@ private fun printReportSummary(report: AndroidDoctorReport) {
     val configCacheLabel = when (configCacheEnabled) {
         true -> "Enabled"
         false -> "Disabled"
-        null -> "<unknown>"
+        null -> UNKNOWN
     }
 
     val agpVersion = report.android?.agpVersion
@@ -254,25 +259,24 @@ private fun printReportSummary(report: AndroidDoctorReport) {
     println("Status         : $status")
     println("Target Type    : $targetType")
     println("Uses Kapt      : $kaptLabel")
-    println("Is Root        : ${if (isRootProject) "Yes (this is the build root)" else "No (subproject)"}")
+    println("Is Root        : ${if (isRootProject) "Yes (build root)" else "No (subproject)"}")
     println("Module Count   : $moduleCountLabel")
     println("Structure      : $structureAssessment")
     println("Config Cache   : $configCacheLabel")
 
-    // Compose check surfaced (Android-only)
     if (isAndroidProject || agpVersion != null || composeEnabled != null) {
         println()
         println("Android")
-        println("  AGP Version  : ${agpVersion ?: "<unknown>"}")
-        val composeLabel = composeEnabled?.let { if (it) "Enabled" else "Disabled" } ?: "<unknown>"
+        println("  AGP Version  : ${agpVersion ?: UNKNOWN}")
+        val composeLabel = composeEnabled?.let { if (it) "Enabled" else "Disabled" } ?: UNKNOWN
         println("  Compose      : $composeLabel")
     }
 
     if (buildHealthScore != null || modernizationScore != null) {
         println()
         println("Scores")
-        println("  Build Health : ${buildHealthScore ?: "<unknown>"} / 100")
-        println("  Modernize    : ${modernizationScore ?: "<unknown>"} / 100")
+        println("  Build Health : ${buildHealthScore ?: UNKNOWN} / 100")
+        println("  Modernize    : ${modernizationScore ?: UNKNOWN} / 100")
     }
 
     val actions = report.actions.orEmpty()
@@ -281,7 +285,12 @@ private fun printReportSummary(report: AndroidDoctorReport) {
         println("Top Actions")
 
         val sorted = actions.sortedWith(
-            compareBy<ActionInfo> { it.priority ?: Int.MAX_VALUE }.thenBy { it.id ?: "" }
+            compareBy<ActionInfo> { it.priority ?: Int.MAX_VALUE }
+                .thenByDescending { severityWeight(it.severity) }
+                .thenByDescending {
+                    (it.impact?.buildHealthDelta ?: 0) + (it.impact?.modernizationDelta ?: 0)
+                }
+                .thenBy { it.id ?: "" }
         )
 
         var totalBuildDelta = 0
@@ -301,25 +310,25 @@ private fun printReportSummary(report: AndroidDoctorReport) {
             totalBuildDelta += buildDelta
             totalModernDelta += modernDelta
 
-            val impactLabel = buildString {
-                if (buildDelta != 0) append("${formatDelta(buildDelta)} Build Health")
-                if (modernDelta != 0) {
-                    if (isNotEmpty()) append(", ")
-                    append("${formatDelta(modernDelta)} Modernize")
-                }
-            }.ifBlank { "no score estimate" }
-
-            println("  ${index + 1}. [P$priority][$severity][$effort] $title ($impactLabel)")
+            println("  ${index + 1}. [P$priority][$severity][$effort] $title")
             if (why.isNotBlank()) println("     Why: $why")
             if (how.isNotBlank()) println("     How: $how")
+
+            if (buildDelta != 0 || modernDelta != 0) {
+                println("     Impact:")
+                if (buildDelta != 0) println("       - ${formatDelta(buildDelta)} Build Health")
+                if (modernDelta != 0) println("       - ${formatDelta(modernDelta)} Modernize")
+            } else {
+                println("     Impact: No score estimate")
+            }
+
+            println()
         }
 
-        println()
         println("Estimated score gain (if completed):")
         println("  Build Health : ${formatDelta(totalBuildDelta)}")
         println("  Modernize    : ${formatDelta(totalModernDelta)}")
 
-        // 7/30/90 roadmap derived from effort
         printRoadmap(sorted)
     }
 
@@ -347,6 +356,13 @@ private fun printReportSummary(report: AndroidDoctorReport) {
     }
 }
 
+private fun severityWeight(sev: String?): Int = when (sev) {
+    "HIGH" -> 3
+    "MEDIUM" -> 2
+    "LOW" -> 1
+    else -> 0
+}
+
 private fun printRoadmap(actions: List<ActionInfo>) {
     fun effortBucket(effort: String?): String = when (effort) {
         "S" -> "Next 7 days"
@@ -356,7 +372,6 @@ private fun printRoadmap(actions: List<ActionInfo>) {
     }
 
     val grouped = actions.groupBy { effortBucket(it.effort) }
-
     val order = listOf("Next 7 days", "Next 30 days", "Next 90 days", "Unscheduled")
 
     println()
@@ -369,7 +384,9 @@ private fun printRoadmap(actions: List<ActionInfo>) {
 
         println(bucket + ":")
 
-        items.sortedWith(compareBy<ActionInfo> { it.priority ?: Int.MAX_VALUE }.thenBy { it.id ?: "" })
+        items.sortedWith(compareBy<ActionInfo> { it.priority ?: Int.MAX_VALUE }.thenBy {
+            it.id ?: ""
+        })
             .forEach { a ->
                 val title = a.title ?: a.id ?: "Action"
                 val severity = a.severity ?: "?"
