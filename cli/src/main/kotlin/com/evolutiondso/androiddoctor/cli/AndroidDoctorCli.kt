@@ -49,8 +49,7 @@ object AndroidDoctorCli {
      * Later: this will be driven by login/auth/API/etc.
      */
     private fun detectPlan(report: AndroidDoctorReport): CapabilityPlan {
-/*        val modules = report.checks?.moduleCount ?: 0
-        return if (modules > 5) CapabilityPlan.PREMIUM else CapabilityPlan.FREE*/
-        return CapabilityPlan.FREE
+        val modules = report.checks?.moduleCount ?: 0
+        return if (modules > 5) CapabilityPlan.PREMIUM else CapabilityPlan.FREE
     }
 }

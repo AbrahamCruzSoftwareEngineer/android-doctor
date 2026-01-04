@@ -1,147 +1,238 @@
-/* ------------------------------
-   Global & Theme Variables
---------------------------------*/
+/* ---------------------------------------------------------
+   MATERIAL DESIGN INSPIRED THEME
+   AndroidDoctor — HTML Report
+--------------------------------------------------------- */
+
+/* ---------------------------------------------------------
+   COLOR TOKENS (LIGHT / DARK)
+--------------------------------------------------------- */
+
 :root {
-    --bg: #ffffff;
-    --fg: #1a1a1a;
-    --muted: #6a6a6a;
+    --bg: #fafafa;
+    --surface: #ffffff;
+    --surface-2: #f3f3f3;
+    --border: #e0e0e0;
+    --text: #1a1a1a;
+    --text-muted: #5f6368;
 
-    --card-bg: #ffffff;
-    --card-border: #dce3ee;
+    --primary: #1a73e8;
+    --primary-light: #e8f0fe;
+    --primary-dark: #0c47a1;
 
-    --header-bg: linear-gradient(135deg, #dff2ff, #bfe4ff);
+    --radius: 12px;
+    --shadow: 0 2px 6px rgba(0,0,0,0.08);
 
-    --accent: #006be6;
-    --accent-light: #e8f2ff;
+    --header-bg: linear-gradient(135deg, #e8f0fe, #c4ddff);
 }
 
 html[data-theme="dark"] {
-    --bg: #0d1117;
-    --fg: #e3e6ed;
-    --muted: #9aa0a6;
+    --bg: #121212;
+    --surface: #1e1e1e;
+    --surface-2: #252525;
+    --border: #333;
+    --text: #e6e6e6;
+    --text-muted: #9aa0a6;
 
-    --card-bg: #161b22;
-    --card-border: #2a2f36;
+    --primary: #8ab4f8;
+    --primary-light: #3c4043;
+    --primary-dark: #174ea6;
 
-    --header-bg: linear-gradient(135deg, #1e293b, #0f172a);
+    --header-bg: linear-gradient(135deg, #1f2937, #111827);
 
-    --accent: #4ea0ff;
-    --accent-light: #0f172a;
+    --shadow: 0 2px 8px rgba(0,0,0,0.4);
 }
 
-/* ------------------------------
-   Base Layout
---------------------------------*/
+/* ---------------------------------------------------------
+   BASE
+--------------------------------------------------------- */
+
 body {
-    margin: 0;
-    font-family: Inter, system-ui, sans-serif;
-
     background: var(--bg);
-    color: var(--fg);
-
-    transition: background 0.25s ease, color 0.25s ease;
+    margin: 0;
+    padding: 0;
+    font-family: Inter, Roboto, system-ui, sans-serif;
+    color: var(--text);
+    transition: background 0.3s ease, color 0.3s ease;
 }
 
-/* ------------------------------
-   Header
---------------------------------*/
-.header {
+h1, h2, h3, h4 {
+    font-weight: 600;
+    margin: 0 0 6px 0;
+}
+
+p {
+    margin: 4px 0;
+}
+
+/* ---------------------------------------------------------
+   HEADER
+--------------------------------------------------------- */
+
+header {
     background: var(--header-bg);
-    padding: 20px 28px;
+    padding: 22px 32px;
+    color: var(--text);
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
-.header .left h1 {
-    margin: 0 0 4px;
-    font-size: 22px;
+.header-left h1 {
+    margin-bottom: 4px;
+    font-size: 26px;
+    font-weight: 700;
 }
 
 .muted {
-    color: var(--muted);
+    color: var(--text-muted);
     font-size: 14px;
 }
-
-/* ------------------------------
-   Theme Button
---------------------------------*/
 
 .theme-btn {
-    padding: 8px 14px;
-    background: var(--accent);
-    color: white;
+    padding: 8px 16px;
+    background: var(--primary);
+    color: #fff;
     border: none;
-    border-radius: 6px;
-    cursor: pointer;
+    border-radius: 8px;
     font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s ease, opacity 0.2s ease;
 }
+
+.theme-btn:hover {
+    background: var(--primary-dark);
+}
+
 .theme-btn.disabled {
     opacity: 0.45;
-    cursor: not-allowed;
+    cursor: not-allowed !important;
 }
 
 .locked-tag {
     background: #ffcc00;
-    color: #664e00;
-    padding: 4px 8px;
-    border-radius: 4px;
-    margin-left: 10px;
-    font-weight: bold;
+    padding: 3px 8px;
+    border-radius: 6px;
     font-size: 12px;
+    margin-left: 10px;
+    color: #4a3f00;
+    font-weight: 600;
 }
 
-/* ------------------------------
-   Content Layout
---------------------------------*/
-.content {
-    padding: 28px;
-    max-width: 900px;
+/* ---------------------------------------------------------
+   PAGE WRAPPER
+--------------------------------------------------------- */
+
+main {
+    max-width: 1100px;
     margin: auto;
+    padding: 28px 20px;
 }
+
+/* ---------------------------------------------------------
+   CARDS
+--------------------------------------------------------- */
 
 .card {
-    background: var(--card-bg);
-    border: 1px solid var(--card-border);
-    border-radius: 10px;
-    padding: 20px 24px;
+    background: var(--surface);
+    padding: 22px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
     margin-bottom: 20px;
-    box-shadow: 0 1px 3px rgb(0 0 0 / 0.05);
 }
 
 .card h2 {
-    margin-top: 0;
+    margin-bottom: 12px;
 }
 
-/* ------------------------------
-   Actions
---------------------------------*/
-.action-card {
-    margin-bottom: 16px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid var(--card-border);
+/* ---------------------------------------------------------
+   ACTION ITEMS
+--------------------------------------------------------- */
+
+.action-item {
+    background: var(--surface-2);
+    padding: 18px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    margin-bottom: 18px;
+    transition: box-shadow 0.2s ease;
 }
 
-.action-card h3 {
-    margin: 0 0 6px;
+.action-item:hover {
+    box-shadow: 0 4px 10px rgba(0,0,0,0.12);
 }
 
-.impact {
+.action-item h4 {
+    margin-bottom: 6px;
+}
+
+.action-item .impact {
     margin-top: 6px;
-    font-weight: bold;
-    color: var(--accent);
+    font-weight: 500;
+    color: var(--primary-dark);
 }
 
-/* ------------------------------
-   Upgrade Banner (FREE)
---------------------------------*/
-.upgrade-banner {
-    background: var(--accent-light);
+/* ---------------------------------------------------------
+   CHARTS
+--------------------------------------------------------- */
+
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 22px;
+    margin: 20px 0 32px 0;
+}
+
+.chart-card {
+    background: var(--surface);
     padding: 20px;
-    border-radius: 10px;
-    margin-top: 18px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    text-align: center;
 }
 
-.upgrade-banner ul {
-    margin: 8px 0 0 16px;
+.chart-card h3 {
+    margin-bottom: 16px;
 }
+
+.chart-container {
+    width: 100%;
+    height: 160px;
+}
+
+/* ---------------------------------------------------------
+   FREE MODE “UPGRADE” CARD
+--------------------------------------------------------- */
+
+.upgrade-card {
+    background: var(--primary-light);
+    padding: 20px;
+    border-radius: var(--radius);
+    color: var(--primary-dark);
+    border: 1px solid var(--primary);
+    box-shadow: var(--shadow);
+}
+
+.upgrade-card h3 {
+    margin-bottom: 10px;
+}
+
+.upgrade-card ul {
+    margin: 8px 0 0 18px;
+}
+
+/* ---------------------------------------------------------
+   UTILITY CLASSES
+--------------------------------------------------------- */
+
+.flex {
+    display: flex;
+    align-items: center;
+}
+
+.mt-2 { margin-top: 10px; }
+.mt-3 { margin-top: 18px; }
+.mb-2 { margin-bottom: 10px; }
+.mb-3 { margin-bottom: 18px; }
+

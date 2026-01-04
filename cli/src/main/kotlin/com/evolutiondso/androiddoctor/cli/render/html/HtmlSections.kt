@@ -5,34 +5,13 @@ import com.evolutiondso.androiddoctor.cli.utils.DateFormatter
 
 object HtmlSections {
 
-    private fun buildActions(report: AndroidDoctorReport): String {
-        val actions = report.actions.orEmpty()
-
-        if (actions.isEmpty()) return "<p class='muted'>No actions available</p>"
-
-        return actions.joinToString("\n") { a ->
-            """
-            <div class="action-card">
-                <h3>${a.title}</h3>
-                <p class="why">${a.why}</p>
-                <p class="how">${a.how}</p>
-                <div class="impact">
-                    +${a.impact?.buildHealthDelta ?: 0} Build • 
-                    +${a.impact?.modernizationDelta ?: 0} Modernize
-                </div>
-            </div>
-            """.trimIndent()
-        }
-    }
-
     fun buildFreeBody(report: AndroidDoctorReport): String {
-
         val scores = report.scores
 
         return """
         <section class="card">
             <h2>Project Overview</h2>
-            <p><strong>Name:</strong> ${report.project?.name ?: "Unknown"}</p>
+            <p><strong>Project:</strong> ${report.project?.name}</p>
             <p><strong>Status:</strong> ${report.status}</p>
         </section>
 
@@ -43,24 +22,17 @@ object HtmlSections {
         </section>
 
         <section class="card">
-            <h2>Top Actions</h2>
+            <h2>Recommended Actions</h2>
             ${buildActions(report)}
         </section>
 
-        <section class="upgrade-banner">
-            🚀 Upgrade to Premium to unlock:
-            <ul>
-                <li>Dark Mode + Themes</li>
-                <li>Markdown & PDF Export</li>
-                <li>Interactive Charts</li>
-                <li>Extended Recommendations</li>
-            </ul>
-        </section>
+        <div class="upgrade-banner">
+            Upgrade to Premium for charts, insights, and PDF/Markdown exports!
+        </div>
         """
     }
 
     fun buildPremiumBody(report: AndroidDoctorReport): String {
-
         val scores = report.scores
 
         return """
@@ -71,9 +43,26 @@ object HtmlSections {
         </section>
 
         <section class="card">
-            <h2>Score Summary</h2>
-            <p><strong>Build Health:</strong> ${scores?.buildHealth} / 100</p>
-            <p><strong>Modernization:</strong> ${scores?.modernization} / 100</p>
+            <h2>Scores Overview</h2>
+            <p><strong>Build Health:</strong> ${scores?.buildHealth}</p>
+            <p><strong>Modernization:</strong> ${scores?.modernization}</p>
+        </section>
+
+        <section class="charts-grid">
+            <div class="chart-card">
+                <h3>Trend Overview</h3>
+                <canvas id="trendChart"></canvas>
+            </div>
+
+            <div class="chart-card">
+                <h3>Action Impact</h3>
+                <canvas id="impactChart"></canvas>
+            </div>
+
+            <div class="chart-card" style="grid-column: span 2;">
+                <h3>Score Radar</h3>
+                <canvas id="radarChart"></canvas>
+            </div>
         </section>
 
         <section class="card">
@@ -81,5 +70,23 @@ object HtmlSections {
             ${buildActions(report)}
         </section>
         """
+    }
+
+    fun buildActions(report: AndroidDoctorReport): String {
+        val actions = report.actions.orEmpty()
+
+        return actions.joinToString("\n") { a ->
+            """
+            <div class="action-item">
+                <h4>${a.title}</h4>
+                <p>${a.why}</p>
+                <p class="how">${a.how}</p>
+                <p class="impact">
+                    +${a.impact?.buildHealthDelta ?: 0} Build •
+                    +${a.impact?.modernizationDelta ?: 0} Modernize
+                </p>
+            </div>
+            """.trimIndent()
+        }
     }
 }
