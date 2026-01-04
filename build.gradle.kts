@@ -42,11 +42,16 @@ tasks.register("doctorTest") {
             throw GradleException(msg)
         }
 
-        fun timed(label: String, block: () -> Unit) {
+        fun timed(label: String, block: () -> Int) {
             val start = System.currentTimeMillis()
-            block()
+            val exitCode = block()
             val duration = System.currentTimeMillis() - start
-            println("$GREEN   (✓ Completed $label in ${duration}ms) $RESET\n")
+
+            if (exitCode == 0) {
+                println("$GREEN   (✓ Completed $label in ${duration}ms)$RESET\n")
+            } else {
+                fail("Step '$label' failed with exit code $exitCode")
+            }
         }
 
         banner("ANDROIDDOCTOR END-TO-END TEST")
@@ -56,42 +61,39 @@ tasks.register("doctorTest") {
             timed("clean") {
                 step("Cleaning project (requested via -Pclean=true)")
                 exec {
-                    commandLine("bash", "-c", "./gradlew clean")
-                }
-                success("Project cleaned")
+                    commandLine("./gradlew", "clean")
+                }.exitValue
             }
+            success("Project cleaned")
         }
 
-        // Step 1 — Build plugin & CLI (dependsOn ensures this)
         success("Plugin + CLI build completed")
 
         // Step 2 — Run androidDoctorCollect
         timed("androidDoctorCollect") {
-            step("Running androidDoctorCollect inside samples/sample-app")
-            val result = exec {
+            step("Running androidDoctorCollect in samples/sample-app")
+            exec {
                 workingDir = file("samples/sample-app")
                 commandLine("../../gradlew", "androidDoctorCollect")
                 isIgnoreExitValue = true
-            }
-            if (result.exitValue != 0) fail("androidDoctorCollect failed!")
-            success("Report generated successfully")
+            }.exitValue
         }
+        success("Report generated successfully")
 
-        // Step 3 — Run CLI on the json report
+        // Step 3 — Run CLI on report.json
         timed("CLI run") {
-            step("Running CLI to read generated report.json")
-            val result = exec {
+            step("Running CLI against generated report")
+            exec {
                 commandLine(
-                    "bash", "-c",
-                    "./gradlew :cli:run --args=\"--report samples/sample-app/build/androidDoctor/report.json\""
+                    "./gradlew",
+                    ":cli:run",
+                    "--args=--report samples/sample-app/build/androidDoctor/report.json"
                 )
                 isIgnoreExitValue = true
-            }
-            if (result.exitValue != 0) fail("CLI execution failed!")
-            success("CLI executed successfully")
+            }.exitValue
         }
 
         banner("ALL STEPS COMPLETED")
-        println("${GREEN}AndroidDoctor E2E test successful.${RESET}")
+        println("${GREEN}AndroidDoctor E2E test successful! 🎉$RESET")
     }
 }

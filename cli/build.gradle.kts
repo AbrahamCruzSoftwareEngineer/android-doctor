@@ -11,7 +11,7 @@ java {
 }
 
 application {
-    mainClass.set("com.evolutiondso.androiddoctor.cli.AndroidDoctorCliKt")
+    mainClass.set("com.evolutiondso.androiddoctor.cli.MainKt")
     applicationDefaultJvmArgs = listOf(
         "-Dandroiddoctor.repoRoot=${rootProject.rootDir.absolutePath}"
     )
