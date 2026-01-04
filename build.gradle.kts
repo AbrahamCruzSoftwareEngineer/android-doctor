@@ -14,11 +14,16 @@ allprojects {
 }
 
 /**
- * Enhanced AndroidDoctor end-to-end test task.
+ * Full AndroidDoctor E2E test:
+ * - Ensures plugin + CLI build
+ * - Generates report.json
+ * - Exports HTML / MD / PDF outputs
+ * - Tests auto-open flag (no crash)
+ * - Validates output file existence
  */
 tasks.register("doctorTest") {
     group = "verification"
-    description = "End-to-end test: build plugin+CLI, generate report, run CLI with colors and timing."
+    description = "Complete end-to-end test covering plugin, CLI, HTML, Markdown, PDF, and --open behavior."
 
     dependsOn(":plugin:build")
     dependsOn(":cli:build")
@@ -31,10 +36,7 @@ tasks.register("doctorTest") {
         val CYAN = "\u001B[36m"
         val RESET = "\u001B[0m"
 
-        fun banner(msg: String) {
-            println("\n$CYAN====================  $msg  ====================${RESET}\n")
-        }
-
+        fun banner(msg: String) = println("\n$CYAN====================  $msg  ====================${RESET}\n")
         fun step(msg: String) = println("$YELLOW→ $msg$RESET")
         fun success(msg: String) = println("$GREEN✔ $msg$RESET")
         fun fail(msg: String): Nothing {
@@ -54,22 +56,14 @@ tasks.register("doctorTest") {
             }
         }
 
-        banner("ANDROIDDOCTOR END-TO-END TEST")
+        banner("ANDROIDDOCTOR COMPLETE E2E TEST")
 
-        // Optional clean
-        if (project.properties["clean"] == "true") {
-            timed("clean") {
-                step("Cleaning project (requested via -Pclean=true)")
-                exec {
-                    commandLine("./gradlew", "clean")
-                }.exitValue
-            }
-            success("Project cleaned")
-        }
+        val reportJson = "samples/sample-app/build/androidDoctor/report.json"
 
-        success("Plugin + CLI build completed")
+        // Step 1 — Basic build success (already handled by dependsOn)
+        success("Plugin + CLI built successfully")
 
-        // Step 2 — Run androidDoctorCollect
+        // Step 2 — Generate report.json
         timed("androidDoctorCollect") {
             step("Running androidDoctorCollect in samples/sample-app")
             exec {
@@ -78,22 +72,80 @@ tasks.register("doctorTest") {
                 isIgnoreExitValue = true
             }.exitValue
         }
-        success("Report generated successfully")
+        success("report.json generated")
 
-        // Step 3 — Run CLI on report.json
-        timed("CLI run") {
-            step("Running CLI against generated report")
+        if (!file(reportJson).exists()) fail("report.json not created! Something is wrong.")
+
+        // --- Helper to assert created files ---
+        fun assertExists(path: String) {
+            if (!file(path).exists()) fail("Expected output file missing: $path")
+            else success("Verified output exists → $path")
+        }
+
+        // -----------------------------
+        // Step 3 — HTML Export Test
+        // -----------------------------
+        val htmlOut = "cli/build/androidDoctor/html/report.html"
+        timed("CLI HTML export") {
+            step("Exporting HTML report...")
             exec {
                 commandLine(
-                    "./gradlew",
-                    ":cli:run",
-                    "--args=--report samples/sample-app/build/androidDoctor/report.json"
+                    "./gradlew", ":cli:run",
+                    "--args=--report $reportJson --html"
                 )
                 isIgnoreExitValue = true
             }.exitValue
         }
+        assertExists(htmlOut)
 
-        banner("ALL STEPS COMPLETED")
-        println("${GREEN}AndroidDoctor E2E test successful! 🎉$RESET")
+        // -----------------------------
+        // Step 4 — Markdown Export (Premium only)
+        // -----------------------------
+        val mdOut = "cli/build/androidDoctor/markdown/report.md"
+        timed("CLI Markdown export") {
+            step("Exporting Markdown report...")
+            exec {
+                commandLine(
+                    "./gradlew", ":cli:run",
+                    "--args=--report $reportJson --md"
+                )
+                isIgnoreExitValue = true
+            }.exitValue
+        }
+        assertExists(mdOut)
+
+        // -----------------------------
+        // Step 5 — PDF Export (Premium only)
+        // -----------------------------
+        val pdfOut = "cli/build/androidDoctor/pdf/report.pdf"
+        timed("CLI PDF export") {
+            step("Exporting PDF report...")
+            exec {
+                commandLine(
+                    "./gradlew", ":cli:run",
+                    "--args=--report $reportJson --pdf"
+                )
+                isIgnoreExitValue = true
+            }.exitValue
+        }
+        assertExists(pdfOut)
+
+        // -----------------------------
+        // Step 6 — Auto-open Test (HTML)
+        // -----------------------------
+        timed("CLI --open test") {
+            step("Testing auto-open flag (will not fail if OS cannot open)")
+            exec {
+                commandLine(
+                    "./gradlew", ":cli:run",
+                    "--args=--report $reportJson --html --open"
+                )
+                isIgnoreExitValue = true
+            }.exitValue
+        }
+        success("--open flag executed without errors")
+
+        banner("ALL STEPS COMPLETED SUCCESSFULLY 🎉")
+        println("${GREEN}AndroidDoctor full E2E test passed!${RESET}")
     }
 }

@@ -2,6 +2,9 @@ package com.evolutiondso.androiddoctor.cli
 
 import com.evolutiondso.androiddoctor.cli.capabilities.CapabilitySet
 import com.evolutiondso.androiddoctor.cli.model.AndroidDoctorReport
+import com.evolutiondso.androiddoctor.cli.render.markdown.MarkdownRenderer
+import com.evolutiondso.androiddoctor.cli.render.pdf.PdfRenderer
+import java.io.File
 
 /**
  * Handles CLI commands after a report is loaded.
@@ -14,72 +17,127 @@ class CommandRouter {
             AndroidDoctor CLI
             
             Usage:
-              androiddoctor --report <file>
-              androiddoctor --report <file> --html
+              androiddoctor --report <file> [--html] [--md] [--pdf] [--open]
               
             Options:
-              --report, -r   Path to report.json
-              --html         Export HTML instead of terminal summary
-              --help, -h     Show this help
+              --report, -r      Path to report.json
+              --html            Export HTML report
+              --md              Export Markdown report (Premium only)
+              --pdf             Export PDF report     (Premium only)
+              --open            Open the exported file automatically
+              --help, -h        Show this help
             """.trimIndent()
         )
     }
 
     /**
-     * Dispatches how a report should be rendered based on capabilities + flags.
+     * Main dispatch for rendering a loaded report based on capability set.
      */
     fun handleReport(report: AndroidDoctorReport, capabilities: CapabilitySet) {
-        val args = capabilitiesParsedArgs()
+        val args = parsedArgs()
 
-        // HTML Mode?
-        if (args.exportHtml) {
-            val htmlRenderer = capabilities.htmlRenderer
-            val output = when (htmlRenderer) {
-                is com.evolutiondso.androiddoctor.cli.render.html.FreeHtmlRenderer ->
-                    htmlRenderer.render(report)
+        var exported = false
+        var exportedFile: String? = null
 
-                is com.evolutiondso.androiddoctor.cli.render.html.PremiumHtmlRenderer ->
-                    htmlRenderer.render(report)
-
-                else -> error("Unknown HTML renderer")
+        // -----------------------
+        // HTML EXPORT
+        // -----------------------
+        if (args.exportHtml && capabilities.canExportHtml()) {
+            capabilities.htmlRenderer?.let { renderer ->
+                val outputPath = "build/androidDoctor/html/report.html"
+                exportedFile = renderer.renderToFile(report, outputPath)
+                println("HTML report exported → $exportedFile")
+                exported = true
             }
-
-            val outputPath = exportHtmlToDisk(output)
-            println("✨ HTML report generated at: $outputPath")
-            return
         }
 
-        // Default = terminal summary
+        // -----------------------
+        // MARKDOWN EXPORT
+        // -----------------------
+        if (args.exportMarkdown && capabilities.canExportMarkdown()) {
+            val outputPath = "build/androidDoctor/markdown/report.md"
+            exportedFile = MarkdownRenderer.renderToFile(report, outputPath)
+            println("📝 Markdown report exported → $exportedFile")
+            exported = true
+        }
+
+        // -----------------------
+        // PDF EXPORT
+        // -----------------------
+        if (args.exportPdf && capabilities.canExportPdf()) {
+            val outputPath = "build/androidDoctor/pdf/report.pdf"
+            exportedFile = PdfRenderer.renderToFile(report, outputPath)
+            println("📄 PDF report exported → $exportedFile")
+            exported = true
+        }
+
+        // AUTO-OPEN exported file
+        if (exported && args.openFile && exportedFile != null) {
+            openFile(exportedFile!!)
+        }
+
+        // If exports requested, do not print terminal summary
+        if (exported) return
+
+        // -----------------------
+        // DEFAULT: TERMINAL SUMMARY
+        // -----------------------
         capabilities.terminalRenderer.render(report)
     }
 
     /**
-     * Reads process args in a safe way.
+     * Parse flags from the real CLI invocation.
      */
-    private fun capabilitiesParsedArgs(): ParsedArgs {
+    private fun parsedArgs(): ParsedArgs {
         val raw = ProcessHandle.current()
             .info()
             .commandLine()
             .orElse("")
             .split(" ")
 
-        val wantsHtml = raw.contains("--html")
-
         return ParsedArgs(
-            exportHtml = wantsHtml
+            exportHtml = raw.contains("--html"),
+            exportMarkdown = raw.contains("--md"),
+            exportPdf = raw.contains("--pdf"),
+            openFile = raw.contains("--open")
         )
     }
 
-    /**
-     * Writes HTML output to disk.
-     */
-    private fun exportHtmlToDisk(html: String): String {
-        val out = java.nio.file.Paths.get("androiddoctor-report.html")
-        java.nio.file.Files.writeString(out, html)
-        return out.toAbsolutePath().toString()
-    }
-
     private data class ParsedArgs(
-        val exportHtml: Boolean = false
+        val exportHtml: Boolean = false,
+        val exportMarkdown: Boolean = false,
+        val exportPdf: Boolean = false,
+        val openFile: Boolean = false
     )
+
+    /**
+     * Opens a file using the OS default program.
+     */
+    private fun openFile(path: String) {
+        val file = File(path)
+        if (!file.exists()) {
+            println("Cannot open file — does not exist: $path")
+            return
+        }
+
+        try {
+            val os = System.getProperty("os.name").lowercase()
+
+            val process = when {
+                os.contains("mac") -> ProcessBuilder("open", file.absolutePath)
+                os.contains("linux") -> ProcessBuilder("xdg-open", file.absolutePath)
+                os.contains("windows") -> ProcessBuilder("cmd", "/c", "start", file.absolutePath)
+                else -> {
+                    println("Unsupported OS — cannot auto-open file.")
+                    return
+                }
+            }
+
+            process.start()
+            println("Opened: ${file.absolutePath}")
+
+        } catch (e: Exception) {
+            println("Failed to open file automatically: ${e.message}")
+        }
+    }
 }
