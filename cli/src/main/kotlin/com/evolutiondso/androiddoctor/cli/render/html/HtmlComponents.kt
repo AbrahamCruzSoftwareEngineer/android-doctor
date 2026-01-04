@@ -1,117 +1,83 @@
 package com.evolutiondso.androiddoctor.cli.render.html
 
+import com.evolutiondso.androiddoctor.cli.model.ActionInfo
+import com.evolutiondso.androiddoctor.cli.model.AndroidDoctorReport
+
 object HtmlComponents {
 
-    fun gradientHeader(title: String, extraRightContent: String = ""): String = """
-        <header class="header">
-            <div class="header-left">$title</div>
-            <div class="header-right">$extraRightContent</div>
-        </header>
+    fun themeToggle(): String = """
+        <label class="theme-switch">
+            <input type="checkbox" id="themeToggle">
+            <span class="slider"></span>
+        </label>
     """.trimIndent()
 
-    fun premiumThemeToggle(): String = """
-        <div class="theme-toggle">
-            <button onclick="setTheme('light')" id="lightBtn">Light</button>
-            <button onclick="setTheme('dark')" id="darkBtn">Dark</button>
+    fun themeUpgradeNotice(): String = """
+        <div class="upgrade-box">
+            <p>✨ Dark theme available in Premium</p>
         </div>
     """.trimIndent()
 
-    fun freeThemeToggle(): String = """
-        <div class="theme-toggle disabled">
-            <button disabled> Light</button>
-            <button disabled> Dark</button>
-            <span class="upsell">Upgrade to Premium to enable themes</span>
-        </div>
-    """.trimIndent()
+    fun projectSummary(report: AndroidDoctorReport): String = """
+        <section class="card">
+            <h2>Project Overview</h2>
+            <p><b>Name:</b> ${report.project?.name ?: "Unknown"}</p>
+            <p><b>Path:</b> ${report.project?.path ?: "Unknown"}</p>
+            <p><b>Generated:</b> ${report.generatedAt ?: "Unknown"}</p>
+        </section>
+    """
 
-    fun css(): String = """
-        <style>
-            body {
-                margin: 0;
-                font-family: 'Roboto', sans-serif;
-                background: var(--bg);
-                color: var(--text);
-                transition: background 0.3s, color 0.3s;
-            }
+    fun scores(report: AndroidDoctorReport): String {
+        val b = report.scores?.buildHealth ?: 0
+        val m = report.scores?.modernization ?: 0
 
-            :root.light {
-                --bg: #ffffff;
-                --text: #222222;
-                --card-bg: #f7f9fc;
-                --border: #e5e8ec;
-            }
+        return """
+        <section class="card">
+            <h2>Scores</h2>
+            <div class="score-box">
+                <div class="score">
+                    <span class="label">Build Health</span>
+                    <span class="value">$b / 100</span>
+                </div>
+                <div class="score">
+                    <span class="label">Modernization</span>
+                    <span class="value">$m / 100</span>
+                </div>
+            </div>
+        </section>
+        """
+    }
 
-            :root.dark {
-                --bg: #111827;
-                --text: #f3f4f6;
-                --card-bg: #1f2937;
-                --border: #374151;
-            }
+    fun actions(actions: List<ActionInfo>): String {
+        if (actions.isEmpty()) return ""
 
-            .header {
-                padding: 16px 24px;
-                background: linear-gradient(135deg, #85c1ff 0%, #4a90e2 100%);
-                color: white;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                font-size: 22px;
-                font-weight: 600;
-            }
+        val rendered = actions.joinToString("\n") { a ->
+            """
+            <div class="action">
+                <h3>${a.title}</h3>
+                <p><b>Why:</b> ${a.why}</p>
+                <p><b>How:</b> ${a.how}</p>
 
-            .theme-toggle button {
-                margin-left: 8px;
-                padding: 6px 12px;
-                border-radius: 6px;
-                border: none;
-                cursor: pointer;
-            }
-            .theme-toggle.disabled button {
-                opacity: 0.5;
-                cursor: not-allowed;
-            }
-            .theme-toggle .upsell {
-                margin-left: 12px;
-                font-size: 13px;
-                color: #e4f1ff;
-            }
+                <p class="impact">
+                    +${a.impact?.buildHealthDelta ?: 0} Build Health • 
+                    +${a.impact?.modernizationDelta ?: 0} Modernization
+                </p>
+            </div>
+            """.trimIndent()
+        }
 
-            .container {
-                padding: 28px;
-                max-width: 900px;
-                margin: auto;
-            }
+        return """
+        <section class="card">
+            <h2>Top Actions</h2>
+            $rendered
+        </section>
+        """
+    }
 
-            .card {
-                background: var(--card-bg);
-                padding: 20px;
-                border-radius: 10px;
-                border: 1px solid var(--border);
-                margin-bottom: 20px;
-            }
-
-            .section-title {
-                font-size: 20px;
-                font-weight: 600;
-                margin-bottom: 12px;
-            }
-
-            .action-item {
-                margin-bottom: 18px;
-            }
-            .impact {
-                font-size: 13px;
-                opacity: 0.8;
-                margin-top: 4px;
-            }
-        </style>
-    """.trimIndent()
-
-    fun themeScript(): String = """
-        <script>
-            function setTheme(mode) {
-                document.documentElement.className = mode;
-            }
-        </script>
-    """.trimIndent()
+    fun chartsSection(): String = """
+        <section class="card">
+            <h2>Build Metrics</h2>
+            <canvas id="scoreChart" width="400" height="200"></canvas>
+        </section>
+    """
 }

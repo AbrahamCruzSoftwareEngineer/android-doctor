@@ -2,20 +2,19 @@ package com.evolutiondso.androiddoctor.cli.render.base
 
 import com.evolutiondso.androiddoctor.cli.model.AndroidDoctorReport
 import java.nio.file.Files
-import java.nio.file.Path
 import java.nio.file.Paths
 
 abstract class HtmlRendererBase {
 
     abstract fun render(report: AndroidDoctorReport): String
 
-    fun renderToFile(report: AndroidDoctorReport, outputPath: String): String {
+    fun renderToFile(report: AndroidDoctorReport, path: String): String {
         val html = render(report)
-        val path: Path = Paths.get(outputPath)
+        val file = Paths.get(path)
 
-        Files.createDirectories(path.parent)
-        Files.writeString(path, html)
+        Files.createDirectories(file.parent)
+        Files.writeString(file, html)
 
-        return path.toAbsolutePath().toString()
+        return file.toAbsolutePath().toString()
     }
 }

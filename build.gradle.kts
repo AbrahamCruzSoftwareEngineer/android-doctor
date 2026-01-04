@@ -145,7 +145,7 @@ tasks.register("doctorTest") {
         }
         success("--open flag executed without errors")
 
-        banner("ALL STEPS COMPLETED SUCCESSFULLY 🎉")
+        banner("ALL STEPS COMPLETED SUCCESSFULLY")
         println("${GREEN}AndroidDoctor full E2E test passed!${RESET}")
     }
 }
