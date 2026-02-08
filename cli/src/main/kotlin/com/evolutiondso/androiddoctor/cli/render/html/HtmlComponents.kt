@@ -7,7 +7,9 @@ object HtmlComponents {
 
     fun overviewCard(report: AndroidDoctorReport, showGenerated: Boolean): String {
         val name = report.project?.name ?: "Unknown"
-        val path = report.project?.path ?: "Unknown"
+        val path = report.project?.path
+            ?.takeIf { it.isNotBlank() && it != ":" }
+            ?: "Unknown"
         val status = report.status ?: "Unknown"
         val generated = if (showGenerated) "<p><strong>Generated:</strong> ${HtmlSections.formattedGenerated(report)}</p>" else ""
 

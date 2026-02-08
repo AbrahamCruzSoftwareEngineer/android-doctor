@@ -92,6 +92,11 @@ function createCharts(data) {
                 responsive: true,
                 maintainAspectRatio: true,
                 aspectRatio: 2.2,
+                animation: { duration: 0 },
+                transitions: {
+                    active: { animation: { duration: 0 } },
+                    resize: { animation: { duration: 0 } }
+                },
                 plugins: {
                     legend: { labels: { color: colors.text } }
                 },
@@ -132,6 +137,11 @@ function createCharts(data) {
                 responsive: true,
                 maintainAspectRatio: true,
                 aspectRatio: 2.4,
+                animation: { duration: 0 },
+                transitions: {
+                    active: { animation: { duration: 0 } },
+                    resize: { animation: { duration: 0 } }
+                },
                 plugins: {
                     legend: { labels: { color: colors.text } }
                 },
@@ -171,6 +181,11 @@ function createCharts(data) {
                 responsive: true,
                 maintainAspectRatio: true,
                 aspectRatio: 1.2,
+                animation: { duration: 0 },
+                transitions: {
+                    active: { animation: { duration: 0 } },
+                    resize: { animation: { duration: 0 } }
+                },
                 plugins: {
                     legend: { labels: { color: colors.text } }
                 },

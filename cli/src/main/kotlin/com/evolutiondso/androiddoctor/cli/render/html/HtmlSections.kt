@@ -18,9 +18,9 @@ object HtmlSections {
         return listOf(
             HtmlComponents.overviewCard(report, showGenerated = true),
             HtmlComponents.scoresCard(report),
-            HtmlComponents.chartsCard("Trend Chart", "trendChart"),
-            HtmlComponents.chartsCard("Impact Chart", "impactChart"),
-            HtmlComponents.chartsCard("Radar Chart", "radarChart", fullWidth = true),
+            HtmlComponents.chartsCard("Trend: Build Health vs Modernization", "trendChart"),
+            HtmlComponents.chartsCard("Impact Summary", "impactChart"),
+            HtmlComponents.chartsCard("Score Radar", "radarChart", fullWidth = true),
             HtmlComponents.actionsCard(report)
         ).joinToString("\n")
     }
