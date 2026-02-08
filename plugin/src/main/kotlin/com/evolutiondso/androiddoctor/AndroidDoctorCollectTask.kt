@@ -327,6 +327,7 @@ private fun buildTopActions(
     val slowTasks = buildMetrics?.topLongestTasks.orEmpty().take(3)
     val lowRam = environmentDiagnostics.availableRamMb < 8192
     val hasTimingData = executionMs != null || configMs != null || buildMetrics?.topLongestTasks?.isNotEmpty() == true
+    val hasCacheStats = cacheTotal > 0
 
     if (moduleCount <= 1 && (executionMs ?: 0) > 120_000) {
         actions += Action(
@@ -368,6 +369,19 @@ private fun buildTopActions(
         true -> Unit
     }
 
+    if (configurationCacheRequested == false) {
+        actions += Action(
+            id = "REQUEST_CONFIGURATION_CACHE",
+            priority = 2,
+            severity = if ((configMs ?: 0) > 30_000) "MEDIUM" else "LOW",
+            effort = "S",
+            title = "Request configuration cache",
+            why = "Configuration cache is not requested; configuration time may be higher than necessary.",
+            how = "Enable org.gradle.configuration-cache=true and validate reuse on subsequent builds.",
+            impact = Impact(if ((configMs ?: 0) > 30_000) 8 else 4, 4)
+        )
+    }
+
     if (configurationCacheRequested == true && configurationCacheEnabled != true) {
         actions += Action(
             id = "CONFIGURATION_CACHE_NOT_REUSED",
@@ -381,6 +395,19 @@ private fun buildTopActions(
         )
     }
 
+    if (configurationCacheRequested == true && configurationCacheEnabled == true) {
+        actions += Action(
+            id = "VERIFY_CONFIGURATION_CACHE_REUSE",
+            priority = 2,
+            severity = "MEDIUM",
+            effort = "S",
+            title = "Verify configuration cache reuse",
+            why = "Configuration cache is enabled but reuse metrics are missing from the report.",
+            how = "Run with --configuration-cache and inspect the reuse summary for incompatible tasks.",
+            impact = Impact(6, 4)
+        )
+    }
+
     if (!hasTimingData) {
         actions += Action(
             id = "ENABLE_BUILD_SCAN",
@@ -391,6 +418,19 @@ private fun buildTopActions(
             why = "Timing data is missing, limiting optimization accuracy.",
             how = "Run with --scan or use Gradle Profiler; ensure builds run with --profile for detailed task durations.",
             impact = Impact(3, 2)
+        )
+    }
+
+    if (!hasCacheStats) {
+        actions += Action(
+            id = "COLLECT_BUILD_CACHE_STATS",
+            priority = 2,
+            severity = "MEDIUM",
+            effort = "S",
+            title = "Collect build cache statistics",
+            why = "Build cache hit/miss data is missing, which hides cache efficiency.",
+            how = "Enable build cache and run a clean build followed by an incremental build to observe hit rates.",
+            impact = Impact(4, 2)
         )
     }
 
@@ -436,6 +476,19 @@ private fun buildTopActions(
             why = "Incremental compilation is off and execution time is high.",
             how = "Ensure Kotlin incremental compilation is enabled and avoid disabling it in compiler flags.",
             impact = Impact(8, 4)
+        )
+    }
+
+    if (buildMetrics?.incrementalCompilationUsed == null && executionMs != null && executionMs > 90_000) {
+        actions += Action(
+            id = "VERIFY_INCREMENTAL_COMPILATION",
+            priority = 3,
+            severity = "LOW",
+            effort = "S",
+            title = "Verify incremental compilation status",
+            why = "Incremental compilation status is unknown; execution time is elevated.",
+            how = "Confirm kotlin.incremental=true and inspect Kotlin compile task logs for incremental status.",
+            impact = Impact(4, 2)
         )
     }
 
@@ -560,15 +613,18 @@ private fun buildTopActions(
         artifact.name.contains("kotlin-compiler-embeddable", ignoreCase = true)
     }
     if (compilerEmbeddable != null) {
+        val compilerCount = dependencyDiagnostics.heavy.count {
+            it.name.contains("kotlin-compiler-embeddable", ignoreCase = true)
+        }
         actions += Action(
             id = "REMOVE_COMPILER_EMBEDDABLE",
-            priority = 2,
-            severity = "MEDIUM",
+            priority = 1,
+            severity = if (compilerCount > 1) "HIGH" else "MEDIUM",
             effort = "S",
             title = "Remove kotlin-compiler-embeddable from runtime dependencies",
-            why = "kotlin-compiler-embeddable is a large artifact and should not be on runtime classpaths.",
+            why = "kotlin-compiler-embeddable appears ${compilerCount}x and is a large artifact that should not be on runtime classpaths.",
             how = "Move it to buildscript classpath or remove it; use the Kotlin Gradle plugin instead of embedding compiler jars.",
-            impact = Impact(6, 4)
+            impact = Impact(if (compilerCount > 1) 10 else 6, 4)
         )
     }
 
