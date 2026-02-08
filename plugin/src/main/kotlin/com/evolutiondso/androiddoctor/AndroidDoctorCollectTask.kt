@@ -1309,7 +1309,7 @@ private fun collectArchitectureDiagnostics(
     project: Project,
     moduleDiagnostics: ModuleDiagnostics
 ): ArchitectureDiagnostics {
-    val sourceFiles = project.rootProject.fileTree(project.rootProject.projectDir).matching {
+    val sourceFiles = project.rootProject.fileTree(project.rootProject.projectDir).apply {
         include("**/*.kt", "**/*.java")
         exclude("**/build/**", "**/.gradle/**", "**/generated/**", "**/test/**", "**/androidTest/**")
     }.files
