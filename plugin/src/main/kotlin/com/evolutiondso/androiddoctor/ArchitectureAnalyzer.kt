@@ -14,12 +14,12 @@ internal data class ArchitectureDiagnostics(
     fun toJson(): String {
         return """
         {
-          \"mvc\": $mvc,
-          \"mvp\": $mvp,
-          \"mvvm\": $mvvm,
-          \"mvi\": $mvi,
-          \"violations\": ${architectureViolationsToJson(violations)},
-          \"recommendedFixes\": ${architectureFixesToJson(recommendedFixes)}
+          "mvc": $mvc,
+          "mvp": $mvp,
+          "mvvm": $mvvm,
+          "mvi": $mvi,
+          "violations": ${architectureViolationsToJson(violations)},
+          "recommendedFixes": ${architectureFixesToJson(recommendedFixes)}
         }
         """.trimIndent()
     }
@@ -271,9 +271,9 @@ private fun architectureViolationsToJson(items: List<ArchitectureViolation>): St
     val json = items.joinToString(",\n") { item ->
         """
         {
-          \"type\": \"${esc(item.type)}\",
-          \"file\": \"${esc(item.file)}\",
-          \"description\": \"${esc(item.description)}\"
+          "type": "${esc(item.type)}",
+          "file": "${esc(item.file)}",
+          "description": "${esc(item.description)}"
         }
         """.trimIndent()
     }
@@ -285,8 +285,8 @@ private fun architectureFixesToJson(items: List<ArchitectureFix>): String {
     val json = items.joinToString(",\n") { item ->
         """
         {
-          \"title\": \"${esc(item.title)}\",
-          \"description\": \"${esc(item.description)}\"
+          "title": "${esc(item.title)}",
+          "description": "${esc(item.description)}"
         }
         """.trimIndent()
     }
