@@ -49,8 +49,9 @@ object PdfRenderer {
                 writeLine("Build Performance:")
                 writeLine("Config: ${report.performance?.configurationMs?.let { "${it} ms" } ?: report.diagnostics?.configuration?.durationMs?.let { "${it} ms" } ?: "Unknown"}")
                 writeLine("Execution: ${report.performance?.executionMs?.let { "${it} ms" } ?: report.diagnostics?.execution?.durationMs?.let { "${it} ms" } ?: "Unknown"}")
-                val cache = report.cache ?: report.diagnostics?.buildCache
-                writeLine("Build Cache: Hits ${cache?.hits ?: 0} / Misses ${cache?.misses ?: 0}")
+                val cacheHits = report.cache?.hits ?: report.diagnostics?.buildCache?.hits
+                val cacheMisses = report.cache?.misses ?: report.diagnostics?.buildCache?.misses
+                writeLine("Build Cache: Hits ${cacheHits ?: 0} / Misses ${cacheMisses ?: 0}")
                 report.diagnostics?.execution?.topLongestTasks.orEmpty().take(5).forEach { task ->
                     writeLine("  - ${task.path ?: "<task>"} (${task.durationMs ?: "?"} ms)")
                 }

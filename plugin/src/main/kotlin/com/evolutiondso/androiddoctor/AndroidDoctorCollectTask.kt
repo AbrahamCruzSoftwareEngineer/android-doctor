@@ -1219,8 +1219,8 @@ private fun collectAnnotationDiagnostics(
             .filter { it.name.startsWith("kapt", ignoreCase = true) }
             .flatMap { it.dependencies }
             .filterIsInstance<org.gradle.api.artifacts.ExternalModuleDependency>()
-            .forEach { dep ->
-                val group = dep.group ?: return@forEach
+            .forEach depLoop@{ dep ->
+                val group = dep.group ?: return@depLoop
                 processors += "$group:${dep.name}"
             }
     }

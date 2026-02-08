@@ -11,7 +11,8 @@ object MarkdownRenderer {
         val buildScore = report.scores?.buildHealth ?: 0
         val modernScore = report.scores?.modernization ?: 0
         val diagnostics = report.diagnostics
-        val cache = report.cache ?: diagnostics?.buildCache
+        val cacheHits = report.cache?.hits ?: diagnostics?.buildCache?.hits
+        val cacheMisses = report.cache?.misses ?: diagnostics?.buildCache?.misses
         val performance = report.performance
         val configCache = diagnostics?.configurationCache
         val deps = report.dependencies
@@ -65,8 +66,8 @@ object MarkdownRenderer {
         ## Build Performance
         - Configuration: ${performance?.configurationMs?.let { "${it} ms" } ?: diagnostics?.configuration?.durationMs?.let { "${it} ms" } ?: "Unknown"}
         - Execution: ${performance?.executionMs?.let { "${it} ms" } ?: diagnostics?.execution?.durationMs?.let { "${it} ms" } ?: "Unknown"}
-        - Build Cache: Hits ${cache?.hits ?: 0} / Misses ${cache?.misses ?: 0}
-        - Incremental Compilation: ${performance?.incrementalCompilation ?: cache?.incrementalCompilationUsed ?: "Unknown"}
+        - Build Cache: Hits ${cacheHits ?: 0} / Misses ${cacheMisses ?: 0}
+        - Incremental Compilation: ${performance?.incrementalCompilation ?: diagnostics?.buildCache?.incrementalCompilationUsed ?: "Unknown"}
         - Longest Tasks:
         $longestTasks
 

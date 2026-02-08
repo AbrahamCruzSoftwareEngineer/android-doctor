@@ -138,8 +138,13 @@ object HtmlComponents {
         val execMs = report.performance?.executionMs?.let { "${it} ms" }
             ?: report.diagnostics?.execution?.durationMs?.let { "${it} ms" }
             ?: "Unknown"
-        val cache = report.cache ?: report.diagnostics?.buildCache
-        val cacheSummary = cache?.let { "Hits ${it.hits ?: 0} / Misses ${it.misses ?: 0}" } ?: "Unknown"
+        val cacheHits = report.cache?.hits ?: report.diagnostics?.buildCache?.hits
+        val cacheMisses = report.cache?.misses ?: report.diagnostics?.buildCache?.misses
+        val cacheSummary = if (cacheHits != null || cacheMisses != null) {
+            "Hits ${cacheHits ?: 0} / Misses ${cacheMisses ?: 0}"
+        } else {
+            "Unknown"
+        }
         val configCache = report.diagnostics?.configurationCache
         val configCacheRequested = configCache?.requested?.let { if (it) "Requested" else "Not requested" } ?: "Unknown"
         val depSummary = report.dependencies?.let {
@@ -167,8 +172,10 @@ object HtmlComponents {
     fun buildPerformanceCard(report: AndroidDoctorReport): String {
         val configMs = report.performance?.configurationMs ?: report.diagnostics?.configuration?.durationMs
         val execMs = report.performance?.executionMs ?: report.diagnostics?.execution?.durationMs
-        val cache = report.cache ?: report.diagnostics?.buildCache
-        val incremental = report.performance?.incrementalCompilation ?: cache?.incrementalCompilationUsed
+        val cacheHits = report.cache?.hits ?: report.diagnostics?.buildCache?.hits
+        val cacheMisses = report.cache?.misses ?: report.diagnostics?.buildCache?.misses
+        val incremental = report.performance?.incrementalCompilation
+            ?: report.diagnostics?.buildCache?.incrementalCompilationUsed
         val tasks = report.diagnostics?.execution?.topLongestTasks.orEmpty()
         val hasTiming = configMs != null || execMs != null || tasks.isNotEmpty()
         val tasksRows = if (tasks.isEmpty()) {
@@ -192,7 +199,7 @@ object HtmlComponents {
             <div class="info-grid">
                 <div><strong>Configuration:</strong> ${configMs?.let { "${it} ms" } ?: "Unknown"}</div>
                 <div><strong>Execution:</strong> ${execMs?.let { "${it} ms" } ?: "Unknown"}</div>
-                <div><strong>Build Cache:</strong> Hits ${cache?.hits ?: 0} / Misses ${cache?.misses ?: 0}</div>
+                <div><strong>Build Cache:</strong> Hits ${cacheHits ?: 0} / Misses ${cacheMisses ?: 0}</div>
                 <div><strong>Incremental Compile:</strong> ${formatBoolean(incremental)}</div>
             </div>
             ${if (!hasTiming) "<p class=\"warning\">No timing data detected. Consider enabling Gradle Build Scan or profiling to capture task timings.</p>" else ""}
