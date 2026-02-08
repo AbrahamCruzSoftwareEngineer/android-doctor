@@ -5,79 +5,104 @@ import com.evolutiondso.androiddoctor.cli.model.AndroidDoctorReport
 
 object HtmlComponents {
 
-    fun themeToggle(): String = """
-        <label class="theme-switch">
-            <input type="checkbox" id="themeToggle">
-            <span class="slider"></span>
-        </label>
-    """.trimIndent()
+    fun overviewCard(report: AndroidDoctorReport, showGenerated: Boolean): String {
+        val name = report.project?.name ?: "Unknown"
+        val path = report.project?.path ?: "Unknown"
+        val status = report.status ?: "Unknown"
+        val generated = if (showGenerated) "<p><strong>Generated:</strong> ${HtmlSections.formattedGenerated(report)}</p>" else ""
 
-    fun themeUpgradeNotice(): String = """
-        <div class="upgrade-box">
-            <p>✨ Dark theme available in Premium</p>
-        </div>
-    """.trimIndent()
-
-    fun projectSummary(report: AndroidDoctorReport): String = """
+        return """
         <section class="card">
             <h2>Project Overview</h2>
-            <p><b>Name:</b> ${report.project?.name ?: "Unknown"}</p>
-            <p><b>Path:</b> ${report.project?.path ?: "Unknown"}</p>
-            <p><b>Generated:</b> ${report.generatedAt ?: "Unknown"}</p>
+            <div class="info-grid">
+                <div><strong>Project:</strong> $name</div>
+                <div><strong>Path:</strong> $path</div>
+                <div><strong>Status:</strong> $status</div>
+            </div>
+            $generated
         </section>
-    """
+        """.trimIndent()
+    }
 
-    fun scores(report: AndroidDoctorReport): String {
-        val b = report.scores?.buildHealth ?: 0
-        val m = report.scores?.modernization ?: 0
+    fun scoresCard(report: AndroidDoctorReport): String {
+        val build = report.scores?.buildHealth ?: 0
+        val modern = report.scores?.modernization ?: 0
 
         return """
         <section class="card">
             <h2>Scores</h2>
-            <div class="score-box">
-                <div class="score">
-                    <span class="label">Build Health</span>
-                    <span class="value">$b / 100</span>
+            <div class="score-grid">
+                <div class="score-tile">
+                    <div class="score-label">Build Health</div>
+                    <div class="score-value">$build</div>
+                    <div class="score-max">/ 100</div>
                 </div>
-                <div class="score">
-                    <span class="label">Modernization</span>
-                    <span class="value">$m / 100</span>
+                <div class="score-tile">
+                    <div class="score-label">Modernization</div>
+                    <div class="score-value">$modern</div>
+                    <div class="score-max">/ 100</div>
                 </div>
             </div>
         </section>
-        """
+        """.trimIndent()
     }
 
-    fun actions(actions: List<ActionInfo>): String {
-        if (actions.isEmpty()) return ""
-
-        val rendered = actions.joinToString("\n") { a ->
-            """
-            <div class="action">
-                <h3>${a.title}</h3>
-                <p><b>Why:</b> ${a.why}</p>
-                <p><b>How:</b> ${a.how}</p>
-
-                <p class="impact">
-                    +${a.impact?.buildHealthDelta ?: 0} Build Health • 
-                    +${a.impact?.modernizationDelta ?: 0} Modernization
-                </p>
-            </div>
+    fun actionsCard(report: AndroidDoctorReport): String {
+        val actions = report.actions.orEmpty()
+        if (actions.isEmpty()) {
+            return """
+            <section class="card">
+                <h2>Recommended Actions</h2>
+                <p class="muted">No recommended actions were found for this report.</p>
+            </section>
             """.trimIndent()
         }
 
         return """
         <section class="card">
-            <h2>Top Actions</h2>
-            $rendered
+            <h2>Recommended Actions</h2>
+            ${actions.joinToString("\n") { actionItem(it) }}
         </section>
-        """
+        """.trimIndent()
     }
 
-    fun chartsSection(): String = """
-        <section class="card">
-            <h2>Build Metrics</h2>
-            <canvas id="scoreChart" width="400" height="200"></canvas>
+    private fun actionItem(action: ActionInfo): String {
+        return """
+        <div class="action-item">
+            <h3>${action.title}</h3>
+            <p><strong>Why:</strong> ${action.why}</p>
+            <p><strong>How:</strong> ${action.how}</p>
+            <p class="impact">
+                +${action.impact?.buildHealthDelta ?: 0} Build Health •
+                +${action.impact?.modernizationDelta ?: 0} Modernization
+            </p>
+        </div>
+        """.trimIndent()
+    }
+
+    fun chartsCard(title: String, canvasId: String, fullWidth: Boolean = false): String {
+        val widthClass = if (fullWidth) "chart-card full" else "chart-card"
+
+        return """
+        <section class="card $widthClass">
+            <h2>$title</h2>
+            <div class="chart-wrapper">
+                <div class="chart-empty" data-chart-empty="$canvasId">No Data Available</div>
+                <canvas id="$canvasId"></canvas>
+            </div>
         </section>
-    """
+        """.trimIndent()
+    }
+
+    fun upgradeBanner(): String = """
+        <section class="upgrade-banner">
+            <div class="upgrade-title">Upgrade to Premium</div>
+            <p>Unlock charts, insights, and advanced exports for your AndroidDoctor reports.</p>
+            <ul>
+                <li>Interactive charts and trends</li>
+                <li>PDF + Markdown exports</li>
+                <li>Theme toggle and premium styling</li>
+            </ul>
+        </section>
+    """.trimIndent()
 }
