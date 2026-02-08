@@ -59,6 +59,7 @@ function createCharts(data) {
     const modernTrend = generateTrend(modern);
 
     const impactTotals = data.impactTotals || { buildHealth: 0, modernization: 0 };
+    const diagnostics = data.diagnostics || {};
 
     const trendCanvas = document.getElementById("trendChart");
     if (trendCanvas) {
@@ -194,6 +195,50 @@ function createCharts(data) {
                     }
                 },
                 cutout: "58%"
+            }
+        }));
+    }
+
+    const buildCacheCanvas = document.getElementById("buildCacheChart");
+    if (buildCacheCanvas) {
+        const cacheHits = diagnostics.cacheHits ?? 0;
+        const cacheMisses = diagnostics.cacheMisses ?? 0;
+        const cacheHasData = hasRealData([cacheHits, cacheMisses]);
+
+        setNoData("buildCacheChart", !cacheHasData);
+
+        window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(buildCacheCanvas, {
+            type: "bar",
+            data: {
+                labels: ["Cache"],
+                datasets: [
+                    {
+                        label: "Hits",
+                        data: [cacheHits],
+                        backgroundColor: colors.primary
+                    },
+                    {
+                        label: "Misses",
+                        data: [cacheMisses],
+                        backgroundColor: colors.accent
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
+                transitions: {
+                    active: { animation: { duration: 0 } },
+                    resize: { animation: { duration: 0 } }
+                },
+                plugins: {
+                    legend: { labels: { color: colors.text } }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: colors.border }, ticks: { color: colors.text } },
+                    x: { grid: { color: colors.border }, ticks: { color: colors.text } }
+                }
             }
         }));
     }

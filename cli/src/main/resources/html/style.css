@@ -340,6 +340,18 @@ thead th {
     color: var(--text-muted);
 }
 
+tr.heat-low td {
+    background: rgba(59, 130, 246, 0.08);
+}
+
+tr.heat-medium td {
+    background: rgba(245, 158, 11, 0.12);
+}
+
+tr.heat-high td {
+    background: rgba(239, 68, 68, 0.12);
+}
+
 .chart-card {
     padding-bottom: 18px;
 }

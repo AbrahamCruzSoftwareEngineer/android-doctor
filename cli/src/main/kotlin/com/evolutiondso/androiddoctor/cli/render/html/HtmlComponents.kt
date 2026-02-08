@@ -166,12 +166,14 @@ object HtmlComponents {
         val cache = report.diagnostics?.buildCache
         val incremental = cache?.incrementalCompilationUsed
         val tasks = report.diagnostics?.execution?.topLongestTasks.orEmpty()
+        val hasTiming = configMs != null || execMs != null || tasks.isNotEmpty()
         val tasksRows = if (tasks.isEmpty()) {
             "<tr><td colspan=\"3\" class=\"muted\">No task timing data available.</td></tr>"
         } else {
             tasks.joinToString("\n") { task ->
+                val heatClass = durationHeatClass(task.durationMs)
                 """
-                <tr>
+                <tr class="$heatClass">
                     <td>${task.path ?: "Unknown"}</td>
                     <td>${task.projectPath ?: "-"}</td>
                     <td>${task.durationMs?.let { "${it} ms" } ?: "Unknown"}</td>
@@ -189,6 +191,7 @@ object HtmlComponents {
                 <div><strong>Build Cache:</strong> Hits ${cache?.hits ?: 0} / Misses ${cache?.misses ?: 0}</div>
                 <div><strong>Incremental Compile:</strong> ${formatBoolean(incremental)}</div>
             </div>
+            ${if (!hasTiming) "<p class=\"warning\">No timing data detected. Consider enabling Gradle Build Scan or profiling to capture task timings.</p>" else ""}
             <div class="table-wrapper">
                 <table>
                     <thead>
@@ -458,6 +461,16 @@ object HtmlComponents {
         val kb = value / 1024.0
         val mb = kb / 1024.0
         return if (mb >= 1) String.format("%.1f MB", mb) else String.format("%.0f KB", kb)
+    }
+
+    private fun durationHeatClass(durationMs: Long?): String {
+        return when {
+            durationMs == null -> ""
+            durationMs >= 2000 -> "heat-high"
+            durationMs >= 1000 -> "heat-medium"
+            durationMs >= 500 -> "heat-low"
+            else -> ""
+        }
     }
 
     fun upgradeBanner(): String = """

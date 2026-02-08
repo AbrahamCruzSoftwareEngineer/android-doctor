@@ -100,21 +100,28 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         val appliedKnownPluginIds = knownPluginIds.filter { project.plugins.hasPlugin(it) }
         val appliedKnownPluginsJson = appliedKnownPluginIds.joinToString { "\"$it\"" }
 
-        // Recommended actions
-        val actions = buildTopActions(
-            moduleCount = moduleCount,
-            usesKapt = usesKapt,
-            configurationCacheEnabled = configurationCacheEnabled,
-            isAndroidProject = isAndroidProject,
-            composeEnabled = composeEnabled
-        )
-
-        val actionsJson = actionsToJson(actions)
         val buildMetrics = metricsService.orNull?.snapshot()
         val dependencyDiagnostics = collectDependencyDiagnostics(project)
         val moduleDiagnostics = collectModuleDiagnostics(project, buildMetrics)
         val annotationDiagnostics = collectAnnotationDiagnostics(project)
         val environmentDiagnostics = collectEnvironmentDiagnostics()
+        val configCacheRequested = readConfigurationCacheRequestedOrNull(project)
+
+        // Recommended actions
+        val actions = buildTopActions(
+            moduleCount = moduleCount,
+            usesKapt = usesKapt,
+            configurationCacheEnabled = configurationCacheEnabled,
+            configurationCacheRequested = configCacheRequested,
+            isAndroidProject = isAndroidProject,
+            composeEnabled = composeEnabled,
+            dependencyDiagnostics = dependencyDiagnostics,
+            annotationDiagnostics = annotationDiagnostics,
+            moduleDiagnostics = moduleDiagnostics,
+            buildMetrics = buildMetrics
+        )
+
+        val actionsJson = actionsToJson(actions)
 
         val agpVersionJson = agpVersion?.let { "\"$it\"" } ?: "null"
         val composeEnabledJson = composeEnabled?.toString() ?: "null"
@@ -173,7 +180,7 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
       "incrementalCompilationUsed": ${buildMetrics?.incrementalCompilationUsed ?: false}
     },
     "configurationCache": {
-      "requested": ${readConfigurationCacheRequestedOrNull(project)?.toString() ?: "null"},
+      "requested": ${configCacheRequested?.toString() ?: "null"},
       "stored": null,
       "reused": null,
       "incompatibleTasks": null
@@ -281,8 +288,13 @@ private fun buildTopActions(
     moduleCount: Int,
     usesKapt: Boolean,
     configurationCacheEnabled: Boolean?,
+    configurationCacheRequested: Boolean?,
     isAndroidProject: Boolean,
-    composeEnabled: Boolean?
+    composeEnabled: Boolean?,
+    dependencyDiagnostics: DependencyDiagnostics,
+    annotationDiagnostics: AnnotationDiagnostics,
+    moduleDiagnostics: ModuleDiagnostics,
+    buildMetrics: BuildMetricsSnapshot?
 ): List<Action> {
 
     val actions = mutableListOf<Action>()
@@ -328,6 +340,32 @@ private fun buildTopActions(
         true -> Unit
     }
 
+    if (configurationCacheRequested == true && configurationCacheEnabled != true) {
+        actions += Action(
+            id = "CONFIGURATION_CACHE_NOT_REUSED",
+            priority = 1,
+            severity = "HIGH",
+            effort = "M",
+            title = "Configuration cache requested but not reused",
+            why = "The build asked for configuration cache, but it was not reused. This can hide configuration bottlenecks.",
+            how = "Review the configuration cache report, fix incompatible tasks, and re-run the build to verify reuse.",
+            impact = Impact(12, 6)
+        )
+    }
+
+    if (buildMetrics?.executionDurationMs == null && buildMetrics?.configurationDurationMs == null) {
+        actions += Action(
+            id = "ENABLE_BUILD_SCAN",
+            priority = 3,
+            severity = "LOW",
+            effort = "S",
+            title = "Enable Build Scan or profiling for timing data",
+            why = "No timing data was captured, which limits performance insights.",
+            how = "Run builds with --scan or use Gradle Profiler to capture configuration and task timings.",
+            impact = Impact(2, 1)
+        )
+    }
+
     // kapt → KSP
     if (usesKapt) {
         actions += Action(
@@ -339,6 +377,27 @@ private fun buildTopActions(
             why = "kapt can slow builds due to Java stub generation and annotation processing overhead.",
             how = "Where supported, migrate libraries to KSP and remove kapt usage incrementally.",
             impact = Impact(20, 10)
+        )
+    }
+
+    val kspCandidates = annotationDiagnostics.processors.filter { processor ->
+        val lower = processor.lowercase()
+        lower.contains("room") ||
+            lower.contains("moshi") ||
+            lower.contains("dagger") ||
+            lower.contains("hilt")
+    }
+
+    if (kspCandidates.isNotEmpty()) {
+        actions += Action(
+            id = "KSP_SUPPORTED_PROCESSORS",
+            priority = 2,
+            severity = "MEDIUM",
+            effort = "M",
+            title = "Prioritize KSP migrations for supported processors",
+            why = "Detected processors with KSP support: ${kspCandidates.joinToString(", ")}.",
+            how = "Evaluate KSP migration guides for these processors and migrate incrementally to reduce kapt overhead.",
+            impact = Impact(12, 8)
         )
     }
 
@@ -369,6 +428,73 @@ private fun buildTopActions(
 
             true -> Unit
         }
+    }
+
+    if (dependencyDiagnostics.outdated.isNotEmpty()) {
+        actions += Action(
+            id = "UPGRADE_OUTDATED_DEPENDENCIES",
+            priority = 2,
+            severity = "MEDIUM",
+            effort = "M",
+            title = "Upgrade outdated dependencies",
+            why = "Outdated libraries can cause build slowdowns and block modernization efforts.",
+            how = "Review the outdated list, prioritize core libraries, and upgrade versions in batches with CI validation.",
+            impact = Impact(6, 8)
+        )
+    }
+
+    if (dependencyDiagnostics.duplicates.isNotEmpty()) {
+        actions += Action(
+            id = "CONSOLIDATE_DUPLICATE_DEPENDENCIES",
+            priority = 2,
+            severity = "MEDIUM",
+            effort = "S",
+            title = "Consolidate duplicate dependency versions",
+            why = "Duplicate versions inflate build time and can cause runtime conflicts.",
+            how = "Align dependency versions using version catalogs or resolution strategies.",
+            impact = Impact(5, 4)
+        )
+    }
+
+    if (dependencyDiagnostics.unused.isNotEmpty()) {
+        actions += Action(
+            id = "REMOVE_UNUSED_DEPENDENCIES",
+            priority = 3,
+            severity = "LOW",
+            effort = "S",
+            title = "Remove unused dependencies",
+            why = "Unused dependencies add unnecessary build overhead.",
+            how = "Validate unused dependencies and remove them from configurations where safe.",
+            impact = Impact(4, 3)
+        )
+    }
+
+    if (dependencyDiagnostics.heavy.isNotEmpty()) {
+        actions += Action(
+            id = "REPLACE_HEAVY_ARTIFACTS",
+            priority = 3,
+            severity = "LOW",
+            effort = "M",
+            title = "Evaluate heavy artifacts",
+            why = "Large artifacts can slow dependency resolution and increase build times.",
+            how = "Look for lighter alternatives or split features behind dynamic delivery.",
+            impact = Impact(4, 3)
+        )
+    }
+
+    if (moduleDiagnostics.modules.size >= 8 &&
+        moduleDiagnostics.dependencies.size > moduleDiagnostics.modules.size * 2
+    ) {
+        actions += Action(
+            id = "REDUCE_MODULE_COUPLING",
+            priority = 2,
+            severity = "MEDIUM",
+            effort = "M",
+            title = "Reduce module coupling",
+            why = "Dense module dependencies can slow incremental builds and reduce cache effectiveness.",
+            how = "Identify highly connected modules and introduce API boundaries or split shared utilities.",
+            impact = Impact(8, 4)
+        )
     }
 
     return actions
