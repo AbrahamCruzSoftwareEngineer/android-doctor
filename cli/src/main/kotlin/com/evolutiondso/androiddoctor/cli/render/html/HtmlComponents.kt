@@ -10,7 +10,7 @@ object HtmlComponents {
         val path = report.project?.path
             ?.takeIf { it.isNotBlank() && it != ":" }
             ?: "Unknown"
-        val status = report.status ?: "Unknown"
+        val status = report.status?.takeIf { it.isNotBlank() && it.lowercase() != "skeleton" } ?: "Unknown"
         val generated = if (showGenerated) "<p><strong>Generated:</strong> ${HtmlSections.formattedGenerated(report)}</p>" else ""
         val pathLine = if (path == "Unknown") "" else "<div><strong>Path:</strong> $path</div>"
         val statusLine = if (status == "Unknown") "" else "<div><strong>Status:</strong> $status</div>"
