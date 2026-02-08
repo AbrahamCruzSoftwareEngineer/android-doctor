@@ -15,12 +15,17 @@ object HtmlSections {
     }
 
     fun buildPremiumBody(report: AndroidDoctorReport): String {
+        val chartCards = listOf(
+            HtmlComponents.chartsCard("Trend: Build Health vs Modernization", "trendChart"),
+            HtmlComponents.chartsCard("Impact Summary", "impactChart"),
+            HtmlComponents.chartsCard("Build Time Mix", "buildTimeChart"),
+            HtmlComponents.chartsCard("Score Radar", "radarChart", fullWidth = true)
+        )
+
         return listOf(
             HtmlComponents.overviewCard(report, showGenerated = true),
             HtmlComponents.scoresCard(report),
-            HtmlComponents.chartsCard("Trend: Build Health vs Modernization", "trendChart"),
-            HtmlComponents.chartsCard("Impact Summary", "impactChart"),
-            HtmlComponents.chartsCard("Score Radar", "radarChart", fullWidth = true),
+            HtmlComponents.chartsGrid(chartCards),
             HtmlComponents.actionsCard(report)
         ).joinToString("\n")
     }

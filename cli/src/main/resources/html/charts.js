@@ -49,6 +49,7 @@ function createCharts(data) {
     const colors = themeColors();
     Chart.defaults.color = colors.text;
     Chart.defaults.borderColor = colors.border;
+    Chart.defaults.font.family = "\"Inter\", \"Roboto\", system-ui, sans-serif";
 
     const build = data.buildHealth ?? 0;
     const modern = data.modernization ?? 0;
@@ -90,8 +91,7 @@ function createCharts(data) {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
-                aspectRatio: 2.2,
+                maintainAspectRatio: false,
                 animation: { duration: 0 },
                 transitions: {
                     active: { animation: { duration: 0 } },
@@ -135,8 +135,7 @@ function createCharts(data) {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
-                aspectRatio: 2.4,
+                maintainAspectRatio: false,
                 animation: { duration: 0 },
                 transitions: {
                     active: { animation: { duration: 0 } },
@@ -149,6 +148,52 @@ function createCharts(data) {
                     y: { beginAtZero: true, grid: { color: colors.border }, ticks: { color: colors.text } },
                     x: { grid: { color: colors.border }, ticks: { color: colors.text } }
                 }
+            }
+        }));
+    }
+
+    const buildTimeCanvas = document.getElementById("buildTimeChart");
+    if (buildTimeCanvas) {
+        const buildTime = data.buildTimeBreakdown || {};
+        const configShare = buildTime.configuration ?? 0;
+        const executionShare = buildTime.execution ?? 0;
+        const annotationShare = buildTime.annotation ?? 0;
+        const buildTimeHasData = hasRealData([configShare, executionShare, annotationShare]);
+
+        setNoData("buildTimeChart", !buildTimeHasData);
+
+        window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(buildTimeCanvas, {
+            type: "doughnut",
+            data: {
+                labels: ["Configuration", "Execution", "Annotation Processing"],
+                datasets: [
+                    {
+                        data: buildTimeHasData
+                            ? [configShare, executionShare, annotationShare]
+                            : [40, 45, 15],
+                        backgroundColor: [colors.primary, colors.accent, colors.primarySoft],
+                        borderColor: colors.border,
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
+                transitions: {
+                    active: { animation: { duration: 0 } },
+                    resize: { animation: { duration: 0 } }
+                },
+                plugins: {
+                    legend: { position: "bottom", labels: { color: colors.text } },
+                    tooltip: {
+                        callbacks: {
+                            label: context => `${context.label}: ${context.parsed}%`
+                        }
+                    }
+                },
+                cutout: "58%"
             }
         }));
     }
@@ -179,8 +224,7 @@ function createCharts(data) {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
-                aspectRatio: 1.2,
+                maintainAspectRatio: false,
                 animation: { duration: 0 },
                 transitions: {
                     active: { animation: { duration: 0 } },

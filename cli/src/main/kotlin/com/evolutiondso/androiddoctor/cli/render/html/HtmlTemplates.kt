@@ -24,6 +24,16 @@ object HtmlTemplates {
         val composition = if (report.android?.composeEnabled == true) 100 else 0
         val buildImpactTotal = report.actions?.sumOf { it.impact?.buildHealthDelta ?: 0 } ?: 0
         val modernizationImpactTotal = report.actions?.sumOf { it.impact?.modernizationDelta ?: 0 } ?: 0
+        val usesKapt = report.checks?.usesKapt == true
+        val configurationCacheEnabled = report.checks?.configurationCacheEnabled
+
+        val configShare = when (configurationCacheEnabled) {
+            true -> 18
+            false -> 36
+            null -> 28
+        }
+        val annotationShare = if (usesKapt) 22 else 10
+        val executionShare = (100 - configShare - annotationShare).coerceAtLeast(10)
 
         val actionsJson = report.actions?.joinToString(prefix = "[", postfix = "]") { action ->
             """{
@@ -43,6 +53,11 @@ object HtmlTemplates {
                 impactTotals: {
                     buildHealth: $buildImpactTotal,
                     modernization: $modernizationImpactTotal
+                },
+                buildTimeBreakdown: {
+                    configuration: $configShare,
+                    execution: $executionShare,
+                    annotation: $annotationShare
                 },
                 actions: $actionsJson
             };

@@ -71,9 +71,25 @@ object HtmlComponents {
     }
 
     private fun actionItem(action: ActionInfo): String {
+        val severity = action.severity?.uppercase() ?: "INFO"
+        val severityClass = when (severity) {
+            "HIGH" -> "chip--high"
+            "MEDIUM" -> "chip--medium"
+            "LOW" -> "chip--low"
+            else -> "chip--neutral"
+        }
+        val effort = action.effort?.uppercase()
+        val effortChip = effort?.let { """<span class="chip chip--effort">Effort: $it</span>""" } ?: ""
+
         return """
         <div class="action-item">
-            <h3>${action.title}</h3>
+            <div class="action-header">
+                <h3>${action.title}</h3>
+                <div class="action-chips">
+                    <span class="chip $severityClass">$severity</span>
+                    $effortChip
+                </div>
+            </div>
             <p><strong>Why:</strong> ${action.why}</p>
             <p><strong>How:</strong> ${action.how}</p>
             <p class="impact">
@@ -95,6 +111,14 @@ object HtmlComponents {
                 <canvas id="$canvasId"></canvas>
             </div>
         </section>
+        """.trimIndent()
+    }
+
+    fun chartsGrid(cards: List<String>): String {
+        return """
+        <div class="charts-grid">
+            ${cards.joinToString("\n")}
+        </div>
         """.trimIndent()
     }
 
