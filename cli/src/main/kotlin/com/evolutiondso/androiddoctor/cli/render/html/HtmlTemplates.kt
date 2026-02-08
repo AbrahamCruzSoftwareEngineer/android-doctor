@@ -9,20 +9,27 @@ object HtmlTemplates {
 
         val safeName = report.project?.name ?: "<unknown>"
         val safeDate = DateFormatter.pretty(report.generatedAt)
+        val buildHealth = report.scores?.buildHealth ?: 0
+        val modernization = report.scores?.modernization ?: 0
+        val composition = if (report.android?.composeEnabled == true) 100 else 0
+        val buildImpactTotal = report.actions?.sumOf { it.impact?.buildHealthDelta ?: 0 } ?: 0
+        val modernizationImpactTotal = report.actions?.sumOf { it.impact?.modernizationDelta ?: 0 } ?: 0
 
-        // Inject data for charts.js
         val dataJson = """
             window.__ANDROID_DOCTOR_DATA__ = {
-                buildHealth: ${report.scores?.buildHealth ?: 0},
-                modernization: ${report.scores?.modernization ?: 0},
-                usesKapt: ${report.checks?.usesKapt ?: false},
-                moduleCount: ${report.checks?.moduleCount ?: 1},
-                actions: ${report.actions?.joinToString(prefix = "[", postfix = "]") { a ->
+                buildHealth: $buildHealth,
+                modernization: $modernization,
+                composition: $composition,
+                impactTotals: {
+                    buildHealth: $buildImpactTotal,
+                    modernization: $modernizationImpactTotal
+                },
+                actions: ${report.actions?.joinToString(prefix = "[", postfix = "]") { action ->
             """{
-                        "title": "${a.title}",
-                        "impact": {
-                            "buildHealthDelta": ${a.impact?.buildHealthDelta ?: 0},
-                            "modernizationDelta": ${a.impact?.modernizationDelta ?: 0}
+                        \"title\": \"${action.title}\",
+                        \"impact\": {
+                            \"buildHealthDelta\": ${action.impact?.buildHealthDelta ?: 0},
+                            \"modernizationDelta\": ${action.impact?.modernizationDelta ?: 0}
                         }
                     }"""
         } ?: "[]"}
@@ -39,28 +46,26 @@ object HtmlTemplates {
 
             <style>${HtmlAssets.styleCss()}</style>
 
-            <!-- Chart.js CDN -->
             <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         </head>
 
         <body>
             <header class="header">
                 <div class="header-left">
-                    <h1>AndroidDoctor Report — ${if (premium) "Premium" else "Free"}</h1>
-                    <p class="small muted">$safeDate</p>
+                    <div class="title">AndroidDoctor Report — ${if (premium) "Premium" else "Free"}</div>
+                    <div class="subtitle">Project: $safeName</div>
+                    <div class="meta">Generated: $safeDate</div>
                 </div>
 
                 <div class="header-right">
-                    <button id="themeToggle" class="theme-btn ${if (!premium) "disabled" else ""}">
-                        Toggle Theme
+                    <button id="themeToggle" class="theme-btn ${if (!premium) "disabled" else ""}" ${if (!premium) "disabled" else ""}>
+                        Theme
                     </button>
-
-                    ${if (!premium)
-            """<div class="locked-tag">Premium Feature</div>""" else ""}
+                    ${if (!premium) """<div class=\"locked-tag\">Premium Feature</div>""" else ""}
                 </div>
             </header>
 
-            <main>
+            <main class="container">
                 $bodyContent
             </main>
 
