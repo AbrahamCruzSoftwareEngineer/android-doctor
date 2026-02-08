@@ -25,6 +25,16 @@ object HtmlTemplates {
         val buildImpactTotal = report.actions?.sumOf { it.impact?.buildHealthDelta ?: 0 } ?: 0
         val modernizationImpactTotal = report.actions?.sumOf { it.impact?.modernizationDelta ?: 0 } ?: 0
 
+        val actionsJson = report.actions?.joinToString(prefix = "[", postfix = "]") { action ->
+            """{
+                "title": "${escapeJs(action.title)}",
+                "impact": {
+                    "buildHealthDelta": ${action.impact?.buildHealthDelta ?: 0},
+                    "modernizationDelta": ${action.impact?.modernizationDelta ?: 0}
+                }
+            }"""
+        } ?: "[]"
+
         val dataJson = """
             window.__ANDROID_DOCTOR_DATA__ = {
                 buildHealth: $buildHealth,
@@ -34,15 +44,7 @@ object HtmlTemplates {
                     buildHealth: $buildImpactTotal,
                     modernization: $modernizationImpactTotal
                 },
-                actions: ${report.actions?.joinToString(prefix = "[", postfix = "]") { action ->
-            """{
-                        \"title\": \"${escapeJs(action.title)}\",
-                        \"impact\": {
-                            \"buildHealthDelta\": ${action.impact?.buildHealthDelta ?: 0},
-                            \"modernizationDelta\": ${action.impact?.modernizationDelta ?: 0}
-                        }
-                    }"""
-        } ?: "[]"}
+                actions: $actionsJson
             };
         """.trimIndent()
 

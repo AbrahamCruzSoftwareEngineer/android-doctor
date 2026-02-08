@@ -90,47 +90,6 @@ function createCharts(data) {
             }
         });
     }
-    const trendCanvas = document.getElementById("trendChart");
-    if (trendCanvas) {
-        const trendHasData = hasRealData([build, modern]);
-        const trendBuild = trendHasData ? buildTrend : [28, 42, 55, 64];
-        const trendModern = trendHasData ? modernTrend : [22, 36, 49, 60];
-
-        setNoData("trendChart", !trendHasData);
-
-        new Chart(trendCanvas, {
-            type: "line",
-            data: {
-                labels: ["v1", "v2", "v3", "Now"],
-                datasets: [
-                    {
-                        label: "Build Health",
-                        data: trendBuild,
-                        borderColor: colors.primary,
-                        backgroundColor: colors.primarySoft,
-                        tension: 0.35,
-                        fill: true
-                    },
-                    {
-                        label: "Modernization",
-                        data: trendModern,
-                        borderColor: colors.accent,
-                        tension: 0.35
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: { labels: { color: colors.text } }
-                },
-                scales: {
-                    y: { beginAtZero: true, grid: { color: colors.border }, ticks: { color: colors.text } },
-                    x: { grid: { color: colors.border }, ticks: { color: colors.text } }
-                }
-            }
-        });
-    }
 
     const impactCanvas = document.getElementById("impactChart");
     if (impactCanvas) {
