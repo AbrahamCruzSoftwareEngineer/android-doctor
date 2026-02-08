@@ -208,11 +208,11 @@ ul {
 
 .chart-wrapper {
     position: relative;
-    height: 220px;
+    min-height: 220px;
 }
 
 .chart-card.full .chart-wrapper {
-    height: 280px;
+    min-height: 260px;
 }
 
 .chart-wrapper canvas {
