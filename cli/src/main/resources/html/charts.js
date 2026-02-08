@@ -156,7 +156,10 @@ function createCharts(data) {
                         data: radarValues,
                         backgroundColor: colors.primarySoft,
                         borderColor: colors.primary,
-                        pointBackgroundColor: colors.primary
+                        pointBackgroundColor: colors.primary,
+                        borderWidth: 2,
+                        pointRadius: 4,
+                        pointHoverRadius: 5
                     }
                 ]
             },
@@ -165,12 +168,26 @@ function createCharts(data) {
                 plugins: {
                     legend: { labels: { color: colors.text } }
                 },
+                elements: {
+                    line: { tension: 0.15 }
+                },
+                layout: {
+                    padding: 8
+                },
                 scales: {
                     r: {
                         beginAtZero: true,
                         grid: { color: colors.border },
-                        pointLabels: { color: colors.text },
-                        ticks: { color: colors.text }
+                        angleLines: { color: colors.border },
+                        pointLabels: {
+                            color: colors.text,
+                            font: { size: 12, weight: "600" }
+                        },
+                        ticks: {
+                            color: colors.text,
+                            backdropColor: "transparent"
+                        },
+                        suggestedMax: 100
                     }
                 }
             }

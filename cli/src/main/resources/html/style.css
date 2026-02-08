@@ -211,6 +211,10 @@ ul {
     height: 220px;
 }
 
+.chart-card.full .chart-wrapper {
+    height: 280px;
+}
+
 .chart-wrapper canvas {
     width: 100% !important;
     height: 100% !important;
