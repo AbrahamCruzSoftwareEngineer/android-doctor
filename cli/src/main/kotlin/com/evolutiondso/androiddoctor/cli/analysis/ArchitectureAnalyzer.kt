@@ -162,7 +162,7 @@ class ArchitectureAnalyzer {
             }
         }
 
-        val patternsDetected = listOf(mvcCount, mvpCount, mvvmCount, mviCount).count { it > 0 }
+        val patternsDetected = listOf(mvcDetected, mvpDetected, mvvmDetected, mviDetected).count { it }
         if (patternsDetected > 2) {
             violations += ArchitectureViolation(
                 type = "ArchitectureInconsistency",
