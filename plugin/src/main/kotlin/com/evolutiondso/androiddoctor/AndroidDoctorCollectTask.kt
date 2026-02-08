@@ -115,10 +115,18 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
             configurationCacheRequested = configCacheRequested,
             isAndroidProject = isAndroidProject,
             composeEnabled = composeEnabled,
+            composeCompilerVersion = composeCompilerVersion,
+            composeMetricsEnabled = composeMetricsEnabled,
+            composeReportsEnabled = composeReportsEnabled,
+            toolchainMismatch = mismatch,
+            javaToolchainVersion = javaToolchainVersion,
+            kotlinJvmTarget = kotlinJvmTarget,
+            javaTargetCompatibility = javaTargetCompatibility,
             dependencyDiagnostics = dependencyDiagnostics,
             annotationDiagnostics = annotationDiagnostics,
             moduleDiagnostics = moduleDiagnostics,
-            buildMetrics = buildMetrics
+            buildMetrics = buildMetrics,
+            environmentDiagnostics = environmentDiagnostics
         )
 
         val actionsJson = actionsToJson(actions)
@@ -291,25 +299,40 @@ private fun buildTopActions(
     configurationCacheRequested: Boolean?,
     isAndroidProject: Boolean,
     composeEnabled: Boolean?,
+    composeCompilerVersion: String?,
+    composeMetricsEnabled: Boolean?,
+    composeReportsEnabled: Boolean?,
+    toolchainMismatch: Boolean?,
+    javaToolchainVersion: String?,
+    kotlinJvmTarget: String?,
+    javaTargetCompatibility: String?,
     dependencyDiagnostics: DependencyDiagnostics,
     annotationDiagnostics: AnnotationDiagnostics,
     moduleDiagnostics: ModuleDiagnostics,
-    buildMetrics: BuildMetricsSnapshot?
+    buildMetrics: BuildMetricsSnapshot?,
+    environmentDiagnostics: EnvironmentDiagnostics
 ): List<Action> {
 
     val actions = mutableListOf<Action>()
+    val executionMs = buildMetrics?.executionDurationMs
+    val configMs = buildMetrics?.configurationDurationMs
+    val cacheHits = buildMetrics?.cacheHits ?: 0
+    val cacheMisses = buildMetrics?.cacheMisses ?: 0
+    val cacheTotal = cacheHits + cacheMisses
+    val cacheHitRate = if (cacheTotal > 0) cacheHits.toDouble() / cacheTotal else null
+    val slowTasks = buildMetrics?.topLongestTasks.orEmpty().take(3)
+    val lowRam = environmentDiagnostics.availableRamMb < 8192
 
-    // Monolithic build
-    if (moduleCount <= 1) {
+    if (moduleCount <= 1 && (executionMs ?: 0) > 120_000) {
         actions += Action(
             id = "MODULARIZE_MONOLITH",
             priority = 1,
             severity = "HIGH",
-            effort = "M",
-            title = "Consider modularizing the build",
-            why = "Single-module builds often get slower as code grows and reduce parallelism.",
-            how = "Start by extracting a :core module, then move one feature into its own module.",
-            impact = Impact(10, 0)
+            effort = "L",
+            title = "Modularize to improve build scalability",
+            why = "Long execution times and a single module reduce parallelism and cache reuse.",
+            how = "Introduce :core and :feature modules, then move high-churn code first. Start with compile-time boundaries.",
+            impact = Impact(18, 6)
         )
     }
 
@@ -317,13 +340,13 @@ private fun buildTopActions(
     when (configurationCacheEnabled) {
         false -> actions += Action(
             id = "ENABLE_CONFIGURATION_CACHE",
-            priority = 1,
-            severity = "HIGH",
+            priority = if ((configMs ?: 0) > 30_000) 1 else 2,
+            severity = if ((configMs ?: 0) > 60_000) "HIGH" else "MEDIUM",
             effort = "S",
             title = "Enable Gradle configuration cache",
-            why = "Configuration cache can significantly reduce configuration time on repeated builds.",
-            how = "Enable it, run a build, then fix incompatibilities reported by Gradle. Consider org.gradle.configuration-cache=true.",
-            impact = Impact(10, 5)
+            why = "Configuration time is ${configMs?.let { "${it} ms" } ?: "unknown"}; cache reuse can cut it drastically.",
+            how = "Enable org.gradle.configuration-cache=true, then fix reported incompatibilities and re-run to verify reuse.",
+            impact = Impact(if ((configMs ?: 0) > 60_000) 16 else 10, 6)
         )
 
         null -> actions += Action(
@@ -353,16 +376,61 @@ private fun buildTopActions(
         )
     }
 
-    if (buildMetrics?.executionDurationMs == null && buildMetrics?.configurationDurationMs == null) {
+    if (executionMs == null && configMs == null) {
         actions += Action(
             id = "ENABLE_BUILD_SCAN",
-            priority = 3,
-            severity = "LOW",
+            priority = 2,
+            severity = "MEDIUM",
             effort = "S",
-            title = "Enable Build Scan or profiling for timing data",
-            why = "No timing data was captured, which limits performance insights.",
-            how = "Run builds with --scan or use Gradle Profiler to capture configuration and task timings.",
-            impact = Impact(2, 1)
+            title = "Capture build timing data",
+            why = "Timing data is missing, limiting optimization accuracy.",
+            how = "Run with --scan or use Gradle Profiler; ensure builds run with --profile for detailed task durations.",
+            impact = Impact(3, 2)
+        )
+    }
+
+    if (executionMs != null && executionMs > 180_000 && slowTasks.isNotEmpty()) {
+        val taskList = slowTasks.joinToString(", ") { it.path }
+        actions += Action(
+            id = "OPTIMIZE_LONG_TASKS",
+            priority = 1,
+            severity = "HIGH",
+            effort = "M",
+            title = "Optimize slow tasks: $taskList",
+            why = "Execution time is ${executionMs} ms and these tasks dominate the build.",
+            how = "Inspect task inputs/outputs, enable incremental compilation, and validate cacheability for the listed tasks.",
+            impact = Impact(14, 5)
+        )
+    }
+
+    if (cacheHitRate != null && cacheHitRate < 0.4) {
+        val severity = if (cacheHitRate < 0.2) "HIGH" else "MEDIUM"
+        actions += Action(
+            id = "IMPROVE_BUILD_CACHE_HIT_RATE",
+            priority = if (severity == "HIGH") 1 else 2,
+            severity = severity,
+            effort = "M",
+            title = "Improve build cache hit rate",
+            why = "Cache hit rate is ${(cacheHitRate * 100).toInt()}%, leading to repeated work.",
+            how = if (environmentDiagnostics.ci) {
+                "Enable remote build cache, verify cache push/pull, and align CI caches across agents."
+            } else {
+                "Enable local/remote build cache and check cacheability warnings for tasks with misses."
+            },
+            impact = Impact(if (severity == "HIGH") 12 else 8, 4)
+        )
+    }
+
+    if (buildMetrics?.incrementalCompilationUsed == false && executionMs != null && executionMs > 120_000) {
+        actions += Action(
+            id = "ENABLE_INCREMENTAL_COMPILATION",
+            priority = 2,
+            severity = "MEDIUM",
+            effort = "S",
+            title = "Enable incremental compilation",
+            why = "Incremental compilation is off and execution time is high.",
+            how = "Ensure Kotlin incremental compilation is enabled and avoid disabling it in compiler flags.",
+            impact = Impact(8, 4)
         )
     }
 
@@ -434,12 +502,12 @@ private fun buildTopActions(
         actions += Action(
             id = "UPGRADE_OUTDATED_DEPENDENCIES",
             priority = 2,
-            severity = "MEDIUM",
+            severity = if (dependencyDiagnostics.outdated.size > 5) "HIGH" else "MEDIUM",
             effort = "M",
             title = "Upgrade outdated dependencies",
-            why = "Outdated libraries can cause build slowdowns and block modernization efforts.",
+            why = "Detected ${dependencyDiagnostics.outdated.size} outdated libraries, which can block modernization.",
             how = "Review the outdated list, prioritize core libraries, and upgrade versions in batches with CI validation.",
-            impact = Impact(6, 8)
+            impact = Impact(if (dependencyDiagnostics.outdated.size > 5) 10 else 6, 8)
         )
     }
 
@@ -470,14 +538,15 @@ private fun buildTopActions(
     }
 
     if (dependencyDiagnostics.heavy.isNotEmpty()) {
+        val heaviest = dependencyDiagnostics.heavy.maxByOrNull { it.sizeBytes }
         actions += Action(
             id = "REPLACE_HEAVY_ARTIFACTS",
             priority = 3,
             severity = "LOW",
             effort = "M",
             title = "Evaluate heavy artifacts",
-            why = "Large artifacts can slow dependency resolution and increase build times.",
-            how = "Look for lighter alternatives or split features behind dynamic delivery.",
+            why = "Large artifacts can slow dependency resolution and increase build times. Largest: ${heaviest?.name}.",
+            how = "Consider lighter alternatives or split heavy features behind dynamic delivery modules.",
             impact = Impact(4, 3)
         )
     }
@@ -494,6 +563,71 @@ private fun buildTopActions(
             why = "Dense module dependencies can slow incremental builds and reduce cache effectiveness.",
             how = "Identify highly connected modules and introduce API boundaries or split shared utilities.",
             impact = Impact(8, 4)
+        )
+    }
+
+    if (toolchainMismatch == true) {
+        actions += Action(
+            id = "ALIGN_TOOLCHAIN_TARGETS",
+            priority = 1,
+            severity = "HIGH",
+            effort = "S",
+            title = "Align Java/Kotlin target versions",
+            why = "Detected mismatched JVM targets (Java: ${javaTargetCompatibility ?: "?"}, Kotlin: ${kotlinJvmTarget ?: "?"}).",
+            how = "Align kotlinOptions.jvmTarget with compileOptions.targetCompatibility and toolchain version ($javaToolchainVersion).",
+            impact = Impact(10, 6)
+        )
+    }
+
+    if (composeEnabled == true && composeCompilerVersion.isNullOrBlank()) {
+        actions += Action(
+            id = "CONFIGURE_COMPOSE_COMPILER",
+            priority = 2,
+            severity = "MEDIUM",
+            effort = "S",
+            title = "Configure Compose compiler version",
+            why = "Compose is enabled but compiler version was not detected.",
+            how = "Set kotlinCompilerExtensionVersion in composeOptions to match your Compose BOM.",
+            impact = Impact(4, 6)
+        )
+    }
+
+    if (composeEnabled == true && composeMetricsEnabled != true) {
+        actions += Action(
+            id = "ENABLE_COMPOSE_METRICS",
+            priority = 3,
+            severity = "LOW",
+            effort = "S",
+            title = "Enable Compose compiler metrics",
+            why = "Compose metrics are disabled; insights on recomposition cost are missing.",
+            how = "Enable compose.compiler.metricsDestination to generate metrics for performance reviews.",
+            impact = Impact(2, 3)
+        )
+    }
+
+    if (composeEnabled == true && composeReportsEnabled != true) {
+        actions += Action(
+            id = "ENABLE_COMPOSE_REPORTS",
+            priority = 3,
+            severity = "LOW",
+            effort = "S",
+            title = "Enable Compose compiler reports",
+            why = "Compose reports are disabled; stability and restartability signals are missing.",
+            how = "Enable compose.compiler.reportsDestination to generate compose compiler reports.",
+            impact = Impact(2, 2)
+        )
+    }
+
+    if (lowRam && environmentDiagnostics.ci) {
+        actions += Action(
+            id = "INCREASE_CI_MEMORY",
+            priority = 2,
+            severity = "MEDIUM",
+            effort = "M",
+            title = "Increase CI memory or reduce parallelism",
+            why = "CI agent has ${environmentDiagnostics.availableRamMb} MB RAM, which can slow Kotlin compilation.",
+            how = "Provision larger CI agents or tune org.gradle.workers.max and Kotlin daemon settings.",
+            impact = Impact(6, 2)
         )
     }
 
