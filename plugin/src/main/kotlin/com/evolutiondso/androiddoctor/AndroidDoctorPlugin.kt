@@ -26,28 +26,27 @@ class AndroidDoctorPlugin : Plugin<Project> {
 
         if (target == target.rootProject) {
             target.rootProject.allprojects { module ->
-                module.tasks.register("androidDoctorRunAnalysis") { analysisTask ->
-                    analysisTask.group = "verification"
-                    analysisTask.description = "Runs build/test tasks used for AndroidDoctor analysis."
+                val analysisTask = module.tasks.register("androidDoctorRunAnalysis") { task ->
+                    task.group = "verification"
+                    task.description = "Runs build/test tasks used for AndroidDoctor analysis."
+                }
 
-                    module.afterEvaluate {
-                        val isSampleModule = module.projectDir.path.contains("/samples/")
-                        if (extension.autoRunBuilds.get()) {
-                            val assemble = module.tasks.findByName("assembleDebug")
-                                ?: module.tasks.findByName("assemble")
-                            assemble?.let { analysisTask.dependsOn(it) }
-                        }
-                        if (extension.autoRunTests.get()) {
-                            module.tasks.findByName("testDebugUnitTest")?.let { analysisTask.dependsOn(it) }
-                            module.tasks.findByName("test")?.let { analysisTask.dependsOn(it) }
-                        }
-                        if (extension.autoRunTests.get()) {
-                            module.tasks.findByName("connectedDebugAndroidTest")?.let { analysisTask.dependsOn(it) }
-                        }
-                        if (extension.autoRunSampleApps.get() && isSampleModule) {
-                            module.tasks.findByName("assembleDebug")?.let { analysisTask.dependsOn(it) }
-                        }
-                    }
+                val isSampleModule = module.projectDir.path.contains("/samples/")
+                if (extension.autoRunBuilds.get()) {
+                    module.tasks.matching { it.name == "assembleDebug" || it.name == "assemble" }
+                        .configureEach { analysisTask.configure { it.dependsOn(this) } }
+                }
+                if (extension.autoRunTests.get()) {
+                    module.tasks.matching { it.name == "testDebugUnitTest" || it.name == "test" }
+                        .configureEach { analysisTask.configure { it.dependsOn(this) } }
+                }
+                if (extension.autoRunTests.get()) {
+                    module.tasks.matching { it.name == "connectedDebugAndroidTest" }
+                        .configureEach { analysisTask.configure { it.dependsOn(this) } }
+                }
+                if (extension.autoRunSampleApps.get() && isSampleModule) {
+                    module.tasks.matching { it.name == "assembleDebug" }
+                        .configureEach { analysisTask.configure { it.dependsOn(this) } }
                 }
             }
         }
