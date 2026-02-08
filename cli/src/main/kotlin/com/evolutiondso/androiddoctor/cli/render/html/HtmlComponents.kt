@@ -16,7 +16,7 @@ object HtmlComponents {
         val statusLine = if (status == "Unknown") "" else "<div><strong>Status:</strong> $status</div>"
 
         return """
-        <section class="card">
+        <section class="card overview-card">
             <h2>Project Overview</h2>
             <div class="info-grid">
                 <div><strong>Project:</strong> $name</div>

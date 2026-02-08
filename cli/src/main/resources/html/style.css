@@ -143,6 +143,14 @@ ul {
     font-size: 20px;
 }
 
+.overview-card h2 {
+    font-size: 18px;
+}
+
+.overview-card .info-grid {
+    font-size: 13px;
+}
+
 .info-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -264,7 +272,7 @@ ul {
 
 .charts-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
     margin-bottom: 20px;
 }
@@ -336,5 +344,9 @@ ul {
     .action-header {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .charts-grid {
+        grid-template-columns: 1fr;
     }
 }
