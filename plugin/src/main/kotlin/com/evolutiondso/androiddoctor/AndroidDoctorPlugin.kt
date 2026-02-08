@@ -18,6 +18,7 @@ class AndroidDoctorPlugin : Plugin<Project> {
         ) {}
 
         target.gradle.addListener(metricsService.get())
+        registerBuildOperationListener(target, metricsService.get())
         target.rootProject.allprojects { project ->
             project.tasks.withType(Test::class.java).configureEach {
                 it.addTestListener(metricsService.get())
@@ -68,5 +69,27 @@ class AndroidDoctorPlugin : Plugin<Project> {
         }
 
         target.logger.lifecycle("AndroidDoctor plugin applied to project: ${target.path}")
+    }
+
+    private fun registerBuildOperationListener(target: Project, metricsService: BuildMetricsService) {
+        try {
+            val listenerClass = Class.forName("org.gradle.internal.operations.BuildOperationListener")
+            val managerClass = Class.forName("org.gradle.internal.operations.BuildOperationListenerManager")
+            val services = target.gradle.services
+            val getService = services.javaClass.methods.firstOrNull { it.name == "get" && it.parameterTypes.size == 1 }
+                ?: return
+            val manager = getService.invoke(services, managerClass) ?: return
+            val proxy = java.lang.reflect.Proxy.newProxyInstance(
+                listenerClass.classLoader,
+                arrayOf(listenerClass)
+            ) { _, _, _ ->
+                null
+            }
+            val addListener = managerClass.methods.firstOrNull { it.name == "addListener" && it.parameterTypes.size == 1 }
+                ?: return
+            addListener.invoke(manager, proxy)
+        } catch (_: Throwable) {
+            // Best-effort: BuildOperationListener is internal and may not be available.
+        }
     }
 }
