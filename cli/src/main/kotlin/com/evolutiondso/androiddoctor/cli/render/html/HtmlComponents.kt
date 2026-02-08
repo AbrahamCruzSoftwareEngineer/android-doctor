@@ -11,19 +11,28 @@ object HtmlComponents {
             ?.takeIf { it.isNotBlank() && it != ":" }
             ?: "Unknown"
         val status = report.status?.takeIf { it.isNotBlank() && it.lowercase() != "skeleton" } ?: "Unknown"
-        val generated = if (showGenerated) "<p><strong>Generated:</strong> ${HtmlSections.formattedGenerated(report)}</p>" else ""
+        val generatedMetaLine =
+            if (showGenerated) "<div><strong>Generated:</strong> ${HtmlSections.formattedGenerated(report)}</div>" else ""
         val pathLine = if (path == "Unknown") "" else "<div><strong>Path:</strong> $path</div>"
         val statusLine = if (status == "Unknown") "" else "<div><strong>Status:</strong> $status</div>"
 
         return """
         <section class="card overview-card">
-            <h2>Project Overview</h2>
+            <div class="overview-header">
+                <div>
+                    <p class="overview-eyebrow">Project Overview</p>
+                    <h2 class="overview-title">$name</h2>
+                </div>
+            <div class="overview-meta">
+                $generatedMetaLine
+            </div>
+            </div>
+            <div class="overview-divider"></div>
             <div class="info-grid">
                 <div><strong>Project:</strong> $name</div>
                 $pathLine
                 $statusLine
             </div>
-            $generated
         </section>
         """.trimIndent()
     }

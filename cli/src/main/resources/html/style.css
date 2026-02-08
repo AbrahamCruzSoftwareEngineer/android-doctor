@@ -143,8 +143,40 @@ ul {
     font-size: 20px;
 }
 
-.overview-card h2 {
-    font-size: 18px;
+.overview-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.overview-eyebrow {
+    margin: 0;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-muted);
+}
+
+.overview-title {
+    margin: 6px 0 0;
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.overview-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-align: right;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.overview-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 14px 0;
 }
 
 .overview-card .info-grid {
@@ -344,6 +376,15 @@ ul {
     .action-header {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .overview-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .overview-meta {
+        text-align: left;
     }
 
     .charts-grid {
