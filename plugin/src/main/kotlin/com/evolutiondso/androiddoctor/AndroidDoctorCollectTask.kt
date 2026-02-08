@@ -122,6 +122,8 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
             javaToolchainVersion = javaToolchainVersion,
             kotlinJvmTarget = kotlinJvmTarget,
             javaTargetCompatibility = javaTargetCompatibility,
+            agpVersion = agpVersion,
+            compileSdkVersion = compileSdkVersion,
             dependencyDiagnostics = dependencyDiagnostics,
             annotationDiagnostics = annotationDiagnostics,
             moduleDiagnostics = moduleDiagnostics,
@@ -306,6 +308,8 @@ private fun buildTopActions(
     javaToolchainVersion: String?,
     kotlinJvmTarget: String?,
     javaTargetCompatibility: String?,
+    agpVersion: String?,
+    compileSdkVersion: String?,
     dependencyDiagnostics: DependencyDiagnostics,
     annotationDiagnostics: AnnotationDiagnostics,
     moduleDiagnostics: ModuleDiagnostics,
@@ -322,6 +326,7 @@ private fun buildTopActions(
     val cacheHitRate = if (cacheTotal > 0) cacheHits.toDouble() / cacheTotal else null
     val slowTasks = buildMetrics?.topLongestTasks.orEmpty().take(3)
     val lowRam = environmentDiagnostics.availableRamMb < 8192
+    val hasTimingData = executionMs != null || configMs != null || buildMetrics?.topLongestTasks?.isNotEmpty() == true
 
     if (moduleCount <= 1 && (executionMs ?: 0) > 120_000) {
         actions += Action(
@@ -376,7 +381,7 @@ private fun buildTopActions(
         )
     }
 
-    if (executionMs == null && configMs == null) {
+    if (!hasTimingData) {
         actions += Action(
             id = "ENABLE_BUILD_SCAN",
             priority = 2,
@@ -542,12 +547,28 @@ private fun buildTopActions(
         actions += Action(
             id = "REPLACE_HEAVY_ARTIFACTS",
             priority = 3,
-            severity = "LOW",
+            severity = if ((heaviest?.sizeBytes ?: 0) > 25L * 1024 * 1024) "MEDIUM" else "LOW",
             effort = "M",
             title = "Evaluate heavy artifacts",
-            why = "Large artifacts can slow dependency resolution and increase build times. Largest: ${heaviest?.name}.",
-            how = "Consider lighter alternatives or split heavy features behind dynamic delivery modules.",
-            impact = Impact(4, 3)
+            why = "Large artifacts can slow dependency resolution and increase build times. Largest: ${heaviest?.group}:${heaviest?.name}.",
+            how = "Consider lighter alternatives, remove unused transitive artifacts, or split heavy features behind dynamic delivery modules.",
+            impact = Impact(6, 3)
+        )
+    }
+
+    val compilerEmbeddable = dependencyDiagnostics.heavy.firstOrNull { artifact ->
+        artifact.name.contains("kotlin-compiler-embeddable", ignoreCase = true)
+    }
+    if (compilerEmbeddable != null) {
+        actions += Action(
+            id = "REMOVE_COMPILER_EMBEDDABLE",
+            priority = 2,
+            severity = "MEDIUM",
+            effort = "S",
+            title = "Remove kotlin-compiler-embeddable from runtime dependencies",
+            why = "kotlin-compiler-embeddable is a large artifact and should not be on runtime classpaths.",
+            how = "Move it to buildscript classpath or remove it; use the Kotlin Gradle plugin instead of embedding compiler jars.",
+            impact = Impact(6, 4)
         )
     }
 
@@ -576,6 +597,32 @@ private fun buildTopActions(
             why = "Detected mismatched JVM targets (Java: ${javaTargetCompatibility ?: "?"}, Kotlin: ${kotlinJvmTarget ?: "?"}).",
             how = "Align kotlinOptions.jvmTarget with compileOptions.targetCompatibility and toolchain version ($javaToolchainVersion).",
             impact = Impact(10, 6)
+        )
+    }
+
+    if (isAndroidProject && agpVersion.isNullOrBlank()) {
+        actions += Action(
+            id = "DETECT_AGP_VERSION",
+            priority = 2,
+            severity = "MEDIUM",
+            effort = "S",
+            title = "Ensure AGP version is detected",
+            why = "AGP version was not detected, which limits compatibility guidance.",
+            how = "Verify the Android Gradle Plugin is applied in the root build and that build logic is not hiding the version.",
+            impact = Impact(4, 4)
+        )
+    }
+
+    if (isAndroidProject && compileSdkVersion.isNullOrBlank()) {
+        actions += Action(
+            id = "SET_COMPILE_SDK",
+            priority = 2,
+            severity = "MEDIUM",
+            effort = "S",
+            title = "Set compileSdk for Android modules",
+            why = "compileSdk was not detected; this can block modern Android APIs and tooling alignment.",
+            how = "Define compileSdk in the Android block for all modules and keep it aligned with AGP recommendations.",
+            impact = Impact(5, 6)
         )
     }
 
@@ -615,6 +662,19 @@ private fun buildTopActions(
             why = "Compose reports are disabled; stability and restartability signals are missing.",
             how = "Enable compose.compiler.reportsDestination to generate compose compiler reports.",
             impact = Impact(2, 2)
+        )
+    }
+
+    if (annotationDiagnostics.processors.size > 5 && usesKapt) {
+        actions += Action(
+            id = "REDUCE_PROCESSOR_OVERHEAD",
+            priority = 2,
+            severity = "MEDIUM",
+            effort = "M",
+            title = "Reduce annotation processor overhead",
+            why = "Detected ${annotationDiagnostics.processors.size} processors; kapt overhead can be significant.",
+            how = "Consolidate processors, remove unused ones, and migrate compatible processors to KSP.",
+            impact = Impact(10, 6)
         )
     }
 
