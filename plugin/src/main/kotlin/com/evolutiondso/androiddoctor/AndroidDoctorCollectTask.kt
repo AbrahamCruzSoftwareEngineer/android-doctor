@@ -3,6 +3,9 @@ package com.evolutiondso.androiddoctor
 import org.gradle.api.DefaultTask
 import org.gradle.api.Project
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.plugins.JavaPluginExtension
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 import java.time.Instant
@@ -11,6 +14,9 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
 
     @get:OutputFile
     abstract val reportFile: RegularFileProperty
+
+    @get:Internal
+    abstract val metricsService: Property<BuildMetricsService>
 
     init {
         group = "verification"
@@ -27,6 +33,7 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         val projectPath = project.path
         val gradleVersion = project.gradle.gradleVersion
         val kotlinStdlibVersion = KotlinVersion.CURRENT.toString()
+        val kotlinCompilerVersion = readKotlinCompilerVersionOrNull()
         val pluginVersion = ANDROID_DOCTOR_VERSION
 
         // Android detection
@@ -56,6 +63,17 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         // Android signals (safe reflection)
         val agpVersion = readAgpVersionOrNull()
         val composeEnabled = readComposeEnabledOrNull(project)
+        val composeCompilerVersion = readComposeCompilerVersionOrNull(project)
+        val composeMetricsEnabled = readComposeMetricsEnabledOrNull(project)
+        val composeReportsEnabled = readComposeReportsEnabledOrNull(project)
+        val compileSdkVersion = readCompileSdkOrNull(project)
+        val javaToolchainVersion = readJavaToolchainVersionOrNull(project)
+        val kotlinJvmTarget = readKotlinJvmTargetOrNull(project)
+        val javaTargetCompatibility = readJavaTargetCompatibilityOrNull(project)
+        val agpCompileTarget = readAgpCompileTargetCompatibilityOrNull(project)
+        val agpCompileSource = readAgpCompileSourceCompatibilityOrNull(project)
+        val mismatch =
+            detectJvmTargetMismatch(kotlinJvmTarget, javaTargetCompatibility, agpCompileTarget)
 
         // Compute scores
         val scores = computeScores(
@@ -92,6 +110,11 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         )
 
         val actionsJson = actionsToJson(actions)
+        val buildMetrics = metricsService.orNull?.get()?.snapshot()
+        val dependencyDiagnostics = collectDependencyDiagnostics(project)
+        val moduleDiagnostics = collectModuleDiagnostics(project, buildMetrics)
+        val annotationDiagnostics = collectAnnotationDiagnostics(project)
+        val environmentDiagnostics = collectEnvironmentDiagnostics()
 
         val agpVersionJson = agpVersion?.let { "\"$it\"" } ?: "null"
         val composeEnabledJson = composeEnabled?.toString() ?: "null"
@@ -100,7 +123,7 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         // ---------- CLEAN JSON (NO LEADING INDENTATION) ----------
         val json = """
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "generatedAt": "$now",
   "project": {
     "name": "$projectName",
@@ -109,6 +132,7 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
   "tooling": {
     "gradleVersion": "$gradleVersion",
     "kotlinStdlibVersion": "$kotlinStdlibVersion",
+    "kotlinCompilerVersion": ${quote(kotlinCompilerVersion)},
     "androidDoctorPluginVersion": "$pluginVersion"
   },
   "status": "skeleton",
@@ -123,12 +147,50 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
   },
   "android": {
     "agpVersion": $agpVersionJson,
-    "composeEnabled": $composeEnabledJson
+    "composeEnabled": $composeEnabledJson,
+    "compileSdk": ${quote(compileSdkVersion)},
+    "composeCompilerVersion": ${quote(composeCompilerVersion)},
+    "composeMetricsEnabled": ${composeMetricsEnabled?.toString() ?: "null"},
+    "composeReportsEnabled": ${composeReportsEnabled?.toString() ?: "null"}
   },
   "scores": {
     "buildHealth": ${scores.buildHealth},
     "modernization": ${scores.modernization}
   },
+  "diagnostics": {
+    "configuration": {
+      "durationMs": ${buildMetrics?.configurationDurationMs ?: "null"}
+    },
+    "execution": {
+      "durationMs": ${buildMetrics?.executionDurationMs ?: "null"},
+      "topLongestTasks": ${tasksToJson(buildMetrics?.topLongestTasks.orEmpty())}
+    },
+    "buildCache": {
+      "enabled": ${project.gradle.startParameter.isBuildCacheEnabled},
+      "hits": ${buildMetrics?.cacheHits ?: 0},
+      "misses": ${buildMetrics?.cacheMisses ?: 0},
+      "skipped": ${buildMetrics?.cacheSkipped ?: 0},
+      "incrementalCompilationUsed": ${buildMetrics?.incrementalCompilationUsed ?: false}
+    },
+    "configurationCache": {
+      "requested": ${readConfigurationCacheRequestedOrNull(project)?.toString() ?: "null"},
+      "stored": null,
+      "reused": null,
+      "incompatibleTasks": null
+    }
+  },
+  "dependencies": ${dependencyDiagnostics.toJson()},
+  "toolchain": {
+    "javaToolchainVersion": ${quote(javaToolchainVersion)},
+    "jvmTarget": ${quote(javaTargetCompatibility)},
+    "kotlinJvmTarget": ${quote(kotlinJvmTarget)},
+    "agpCompileTarget": ${quote(agpCompileTarget)},
+    "agpCompileSource": ${quote(agpCompileSource)},
+    "jvmTargetMismatch": ${mismatch?.toString() ?: "null"}
+  },
+  "modules": ${moduleDiagnostics.toJson()},
+  "annotationProcessing": ${annotationDiagnostics.toJson()},
+  "environment": ${environmentDiagnostics.toJson()},
   "actions": $actionsJson,
   "plugins": {
     "appliedKnownPluginIds": [ $appliedKnownPluginsJson ]
@@ -341,6 +403,32 @@ private fun actionsToJson(actions: List<Action>): String {
     return "[\n$items\n]"
 }
 
+private fun tasksToJson(tasks: List<TaskTiming>): String {
+    if (tasks.isEmpty()) return "[]"
+
+    fun esc(s: String): String =
+        s.replace("\\", "\\\\").replace("\"", "\\\"")
+
+    val items = tasks.joinToString(",\n") { task ->
+        """
+        {
+          "path": "${esc(task.path)}",
+          "projectPath": "${esc(task.projectPath)}",
+          "durationMs": ${task.durationMs},
+          "didWork": ${task.didWork},
+          "skipped": ${task.skipped},
+          "skipMessage": ${task.skipMessage?.let { "\"${esc(it)}\"" } ?: "null"}
+        }
+        """.trimIndent()
+    }
+
+    return "[\n$items\n]"
+}
+
+private fun quote(value: String?): String = value?.let { "\"${esc(it)}\"" } ?: "null"
+
+private fun esc(value: String): String = value.replace("\\", "\\\\").replace("\"", "\\\"")
+
 // ---------------------------------------------------------------------------
 // Reflection helpers
 // ---------------------------------------------------------------------------
@@ -375,6 +463,130 @@ private fun readComposeEnabledOrNull(project: Project): Boolean? {
     }
 }
 
+private fun readComposeCompilerVersionOrNull(project: Project): String? {
+    val androidExt = project.extensions.findByName("android") ?: return null
+
+    return try {
+        val getComposeOptions =
+            androidExt.javaClass.methods.firstOrNull { it.name == "getComposeOptions" }
+                ?: return null
+        val composeOptions = getComposeOptions.invoke(androidExt) ?: return null
+        val getCompilerVersion =
+            composeOptions.javaClass.methods.firstOrNull { it.name == "getKotlinCompilerExtensionVersion" }
+                ?: return null
+        getCompilerVersion.invoke(composeOptions) as? String
+    } catch (_: Throwable) {
+        null
+    }
+}
+
+private fun readComposeMetricsEnabledOrNull(project: Project): Boolean? {
+    return readComposeCompilerFlag(project, "metricsDestination")
+}
+
+private fun readComposeReportsEnabledOrNull(project: Project): Boolean? {
+    return readComposeCompilerFlag(project, "reportsDestination")
+}
+
+private fun readComposeCompilerFlag(project: Project, flag: String): Boolean? {
+    return try {
+        val task = project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class.java)
+            .firstOrNull() ?: return null
+        val args = task.kotlinOptions.freeCompilerArgs
+        args.any { it.contains(flag) }
+    } catch (_: Throwable) {
+        null
+    }
+}
+
+private fun readCompileSdkOrNull(project: Project): String? {
+    val androidExt = project.extensions.findByName("android") ?: return null
+    return try {
+        val method = androidExt.javaClass.methods.firstOrNull { it.name == "getCompileSdkVersion" }
+            ?: androidExt.javaClass.methods.firstOrNull { it.name == "getCompileSdk" }
+            ?: return null
+        method.invoke(androidExt)?.toString()
+    } catch (_: Throwable) {
+        null
+    }
+}
+
+private fun readJavaToolchainVersionOrNull(project: Project): String? {
+    val javaExtension = project.extensions.findByType(JavaPluginExtension::class.java) ?: return null
+    return javaExtension.toolchain.languageVersion.orNull?.toString()
+}
+
+private fun readKotlinCompilerVersionOrNull(): String? {
+    return try {
+        val clazz = Class.forName("org.jetbrains.kotlin.config.KotlinCompilerVersion")
+        val field = clazz.getField("VERSION")
+        field[null]?.toString()
+    } catch (_: Throwable) {
+        null
+    }
+}
+
+private fun readKotlinJvmTargetOrNull(project: Project): String? {
+    return try {
+        val task = project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class.java)
+            .firstOrNull() ?: return null
+        task.kotlinOptions.jvmTarget
+    } catch (_: Throwable) {
+        null
+    }
+}
+
+private fun readJavaTargetCompatibilityOrNull(project: Project): String? {
+    return try {
+        val task = project.tasks.withType(org.gradle.api.tasks.compile.JavaCompile::class.java)
+            .firstOrNull() ?: return null
+        task.targetCompatibility
+    } catch (_: Throwable) {
+        null
+    }
+}
+
+private fun readAgpCompileTargetCompatibilityOrNull(project: Project): String? {
+    val androidExt = project.extensions.findByName("android") ?: return null
+    return try {
+        val method = androidExt.javaClass.methods.firstOrNull { it.name == "getCompileOptions" }
+            ?: return null
+        val compileOptions = method.invoke(androidExt) ?: return null
+        val targetMethod =
+            compileOptions.javaClass.methods.firstOrNull { it.name == "getTargetCompatibility" }
+                ?: return null
+        targetMethod.invoke(compileOptions)?.toString()
+    } catch (_: Throwable) {
+        null
+    }
+}
+
+private fun readAgpCompileSourceCompatibilityOrNull(project: Project): String? {
+    val androidExt = project.extensions.findByName("android") ?: return null
+    return try {
+        val method = androidExt.javaClass.methods.firstOrNull { it.name == "getCompileOptions" }
+            ?: return null
+        val compileOptions = method.invoke(androidExt) ?: return null
+        val sourceMethod =
+            compileOptions.javaClass.methods.firstOrNull { it.name == "getSourceCompatibility" }
+                ?: return null
+        sourceMethod.invoke(compileOptions)?.toString()
+    } catch (_: Throwable) {
+        null
+    }
+}
+
+private fun detectJvmTargetMismatch(
+    kotlinTarget: String?,
+    javaTarget: String?,
+    agpTarget: String?
+): Boolean? {
+    val targets = listOfNotNull(kotlinTarget, javaTarget, agpTarget).map { it.trim() }.distinct()
+    if (targets.isEmpty()) return null
+    return targets.size > 1
+}
+
+
 private fun readConfigurationCacheEnabledOrNull(project: Project): Boolean? {
     return try {
         val gradle = project.gradle
@@ -401,4 +613,323 @@ private fun readConfigurationCacheEnabledOrNull(project: Project): Boolean? {
     } catch (_: Throwable) {
         null
     }
+}
+
+private fun readConfigurationCacheRequestedOrNull(project: Project): Boolean? {
+    return try {
+        val startParameter = project.gradle.startParameter
+        val method = startParameter.javaClass.methods.firstOrNull { it.name == "isConfigurationCacheRequested" }
+            ?: return null
+        method.invoke(startParameter) as? Boolean
+    } catch (_: Throwable) {
+        null
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostics collection
+// ---------------------------------------------------------------------------
+
+private data class DependencyDuplicate(val group: String, val name: String, val versions: List<String>)
+private data class DependencyOutdated(val group: String, val name: String, val currentVersion: String, val latestVersion: String)
+private data class DependencyUnused(val group: String, val name: String, val version: String?, val configuration: String)
+private data class DependencyHeavy(val group: String, val name: String, val version: String?, val sizeBytes: Long)
+
+private data class DependencyDiagnostics(
+    val duplicates: List<DependencyDuplicate>,
+    val outdated: List<DependencyOutdated>,
+    val unused: List<DependencyUnused>,
+    val heavy: List<DependencyHeavy>
+) {
+    fun toJson(): String {
+        return """
+        {
+          "duplicates": ${duplicatesToJson(duplicates)},
+          "outdated": ${outdatedToJson(outdated)},
+          "unused": ${unusedToJson(unused)},
+          "heavy": ${heavyToJson(heavy)}
+        }
+        """.trimIndent()
+    }
+}
+
+private data class ModuleDiagnostics(
+    val modules: List<ModuleInfo>,
+    val dependencies: List<ModuleDependency>
+) {
+    fun toJson(): String {
+        return """
+        {
+          "count": ${modules.size},
+          "modules": ${modulesToJson(modules)},
+          "dependencies": ${moduleDepsToJson(dependencies)}
+        }
+        """.trimIndent()
+    }
+}
+
+private data class ModuleInfo(
+    val path: String,
+    val taskCount: Int,
+    val executionMs: Long?,
+    val usesKapt: Boolean,
+    val buildCacheEnabled: Boolean
+)
+
+private data class ModuleDependency(val from: String, val to: String)
+
+private data class AnnotationDiagnostics(
+    val processors: List<String>,
+    val totalProcessingMs: Long?,
+    val kaptStubGenerationMs: Long?
+) {
+    fun toJson(): String {
+        val processorsJson = processors.joinToString(prefix = "[", postfix = "]") { "\"${esc(it)}\"" }
+        return """
+        {
+          "processors": $processorsJson,
+          "totalProcessingMs": ${totalProcessingMs ?: "null"},
+          "kaptStubGenerationMs": ${kaptStubGenerationMs ?: "null"}
+        }
+        """.trimIndent()
+    }
+}
+
+private data class EnvironmentDiagnostics(
+    val os: String,
+    val arch: String,
+    val ci: Boolean,
+    val availableRamMb: Long
+) {
+    fun toJson(): String {
+        return """
+        {
+          "os": "${esc(os)}",
+          "arch": "${esc(arch)}",
+          "ci": $ci,
+          "availableRamMb": $availableRamMb
+        }
+        """.trimIndent()
+    }
+}
+
+private fun collectDependencyDiagnostics(project: Project): DependencyDiagnostics {
+    val duplicates = mutableListOf<DependencyDuplicate>()
+    val outdated = mutableListOf<DependencyOutdated>()
+    val unused = mutableListOf<DependencyUnused>()
+    val heavy = mutableListOf<DependencyHeavy>()
+    val resolvedVersions = mutableMapOf<String, MutableSet<String>>()
+
+    project.rootProject.allprojects.forEach { module ->
+        module.configurations.filter { it.isCanBeResolved }.forEach { configuration ->
+            val declared = configuration.dependencies
+                .filterIsInstance<org.gradle.api.artifacts.ExternalModuleDependency>()
+                .mapNotNull { dep ->
+                    val group = dep.group ?: return@mapNotNull null
+                    val name = dep.name
+                    val version = dep.version
+                    Triple(group, name, version)
+                }
+
+            val resolved = configuration.incoming.resolutionResult.allComponents
+                .mapNotNull { component ->
+                    val id = component.id as? org.gradle.api.artifacts.component.ModuleComponentIdentifier
+                        ?: return@mapNotNull null
+                    Triple(id.group, id.module, id.version)
+                }
+
+            resolved.forEach { (group, name, version) ->
+                resolvedVersions.getOrPut("$group:$name") { mutableSetOf() }.add(version)
+            }
+
+            val resolvedKeys = resolved.map { "${it.first}:${it.second}" }.toSet()
+            declared.forEach { (group, name, version) ->
+                if ("$group:$name" !in resolvedKeys) {
+                    unused += DependencyUnused(group, name, version, configuration.name)
+                }
+            }
+
+            configuration.resolvedConfiguration.lenientConfiguration.artifacts.forEach { artifact ->
+                val id = artifact.moduleVersion.id
+                val size = artifact.file.length()
+                if (size > 5L * 1024 * 1024) {
+                    heavy += DependencyHeavy(id.group, id.name, id.version, size)
+                }
+            }
+        }
+    }
+
+    resolvedVersions.forEach { (module, versions) ->
+        if (versions.size > 1) {
+            val parts = module.split(":", limit = 2)
+            duplicates += DependencyDuplicate(parts[0], parts[1], versions.sorted())
+            val latest = versions.maxOrNull().orEmpty()
+            versions.filter { it != latest }.forEach { version ->
+                outdated += DependencyOutdated(parts[0], parts[1], version, latest)
+            }
+        }
+    }
+
+    return DependencyDiagnostics(duplicates, outdated, unused, heavy)
+}
+
+private fun collectModuleDiagnostics(project: Project, metrics: BuildMetricsSnapshot?): ModuleDiagnostics {
+    val modules = mutableListOf<ModuleInfo>()
+    val deps = mutableListOf<ModuleDependency>()
+    val taskTimes = metrics?.taskDurations.orEmpty()
+
+    project.rootProject.allprojects.forEach { module ->
+        val usesKapt = module.plugins.hasPlugin("org.jetbrains.kotlin.kapt") ||
+            module.plugins.hasPlugin("kotlin-kapt") ||
+            module.configurations.names.any { it.startsWith("kapt", ignoreCase = true) }
+
+        val moduleTasks = taskTimes.filter { it.projectPath == module.path }
+        val moduleDuration = moduleTasks.sumOf { it.durationMs }.takeIf { it > 0 }
+
+        modules += ModuleInfo(
+            path = module.path,
+            taskCount = module.tasks.size,
+            executionMs = moduleDuration,
+            usesKapt = usesKapt,
+            buildCacheEnabled = module.gradle.startParameter.isBuildCacheEnabled
+        )
+
+        module.configurations.filter { it.name.contains("implementation", ignoreCase = true) }
+            .flatMap { it.dependencies }
+            .filterIsInstance<org.gradle.api.artifacts.ProjectDependency>()
+            .forEach { dep ->
+                deps += ModuleDependency(module.path, dep.dependencyProject.path)
+            }
+    }
+
+    return ModuleDiagnostics(modules, deps)
+}
+
+private fun collectAnnotationDiagnostics(project: Project): AnnotationDiagnostics {
+    val processors = mutableSetOf<String>()
+
+    project.rootProject.allprojects.forEach { module ->
+        module.configurations
+            .filter { it.name.startsWith("kapt", ignoreCase = true) }
+            .flatMap { it.dependencies }
+            .filterIsInstance<org.gradle.api.artifacts.ExternalModuleDependency>()
+            .forEach { dep ->
+                val group = dep.group ?: return@forEach
+                processors += "$group:${dep.name}"
+            }
+    }
+
+    return AnnotationDiagnostics(
+        processors = processors.sorted(),
+        totalProcessingMs = null,
+        kaptStubGenerationMs = null
+    )
+}
+
+private fun collectEnvironmentDiagnostics(): EnvironmentDiagnostics {
+    val os = System.getProperty("os.name") ?: "unknown"
+    val arch = System.getProperty("os.arch") ?: "unknown"
+    val env = System.getenv()
+    val ci = env["CI"]?.toBoolean() == true ||
+        env.containsKey("GITHUB_ACTIONS") ||
+        env.containsKey("JENKINS_URL") ||
+        env.containsKey("BUILDKITE") ||
+        env.containsKey("TEAMCITY_VERSION")
+    val ramMb = Runtime.getRuntime().maxMemory() / (1024 * 1024)
+
+    return EnvironmentDiagnostics(
+        os = os,
+        arch = arch,
+        ci = ci,
+        availableRamMb = ramMb
+    )
+}
+
+private fun duplicatesToJson(items: List<DependencyDuplicate>): String {
+    if (items.isEmpty()) return "[]"
+    val json = items.joinToString(",\n") { item ->
+        val versions = item.versions.joinToString(prefix = "[", postfix = "]") { "\"${esc(it)}\"" }
+        """
+        {
+          "group": "${esc(item.group)}",
+          "name": "${esc(item.name)}",
+          "versions": $versions
+        }
+        """.trimIndent()
+    }
+    return "[\n$json\n]"
+}
+
+private fun outdatedToJson(items: List<DependencyOutdated>): String {
+    if (items.isEmpty()) return "[]"
+    val json = items.joinToString(",\n") { item ->
+        """
+        {
+          "group": "${esc(item.group)}",
+          "name": "${esc(item.name)}",
+          "currentVersion": "${esc(item.currentVersion)}",
+          "latestVersion": "${esc(item.latestVersion)}"
+        }
+        """.trimIndent()
+    }
+    return "[\n$json\n]"
+}
+
+private fun unusedToJson(items: List<DependencyUnused>): String {
+    if (items.isEmpty()) return "[]"
+    val json = items.joinToString(",\n") { item ->
+        """
+        {
+          "group": "${esc(item.group)}",
+          "name": "${esc(item.name)}",
+          "version": ${item.version?.let { "\"${esc(it)}\"" } ?: "null"},
+          "configuration": "${esc(item.configuration)}"
+        }
+        """.trimIndent()
+    }
+    return "[\n$json\n]"
+}
+
+private fun heavyToJson(items: List<DependencyHeavy>): String {
+    if (items.isEmpty()) return "[]"
+    val json = items.joinToString(",\n") { item ->
+        """
+        {
+          "group": "${esc(item.group)}",
+          "name": "${esc(item.name)}",
+          "version": ${item.version?.let { "\"${esc(it)}\"" } ?: "null"},
+          "sizeBytes": ${item.sizeBytes}
+        }
+        """.trimIndent()
+    }
+    return "[\n$json\n]"
+}
+
+private fun modulesToJson(items: List<ModuleInfo>): String {
+    if (items.isEmpty()) return "[]"
+    val json = items.joinToString(",\n") { item ->
+        """
+        {
+          "path": "${esc(item.path)}",
+          "taskCount": ${item.taskCount},
+          "executionMs": ${item.executionMs ?: "null"},
+          "usesKapt": ${item.usesKapt},
+          "buildCacheEnabled": ${item.buildCacheEnabled}
+        }
+        """.trimIndent()
+    }
+    return "[\n$json\n]"
+}
+
+private fun moduleDepsToJson(items: List<ModuleDependency>): String {
+    if (items.isEmpty()) return "[]"
+    val json = items.joinToString(",\n") { item ->
+        """
+        {
+          "from": "${esc(item.from)}",
+          "to": "${esc(item.to)}"
+        }
+        """.trimIndent()
+    }
+    return "[\n$json\n]"
 }
