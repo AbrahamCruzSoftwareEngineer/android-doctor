@@ -24,6 +24,34 @@ object HtmlTemplates {
         val composition = if (report.android?.composeEnabled == true) 100 else 0
         val buildImpactTotal = report.actions?.sumOf { it.impact?.buildHealthDelta ?: 0 } ?: 0
         val modernizationImpactTotal = report.actions?.sumOf { it.impact?.modernizationDelta ?: 0 } ?: 0
+        val usesKapt = report.checks?.usesKapt == true
+        val configurationCacheEnabled = report.checks?.configurationCacheEnabled
+        val configDuration = report.performance?.configurationMs ?: report.diagnostics?.configuration?.durationMs ?: 0
+        val executionDuration = report.performance?.executionMs ?: report.diagnostics?.execution?.durationMs ?: 0
+        val cacheHits = report.cache?.hits ?: report.diagnostics?.buildCache?.hits ?: 0
+        val cacheMisses = report.cache?.misses ?: report.diagnostics?.buildCache?.misses ?: 0
+        val incrementalCompile = report.performance?.incrementalCompilation
+            ?: report.diagnostics?.buildCache?.incrementalCompilationUsed
+            ?: false
+        val configCacheRequested = report.diagnostics?.configurationCache?.requested ?: false
+        val outdatedDeps = report.dependencies?.outdated?.size ?: 0
+        val duplicateDeps = report.dependencies?.duplicates?.size ?: 0
+
+        val annotationMs = report.annotationProcessing?.totalProcessingMs
+        val totalMs = listOfNotNull(configDuration.takeIf { it > 0 }, executionDuration.takeIf { it > 0 }, annotationMs)
+            .sum()
+
+        val fallbackConfig = when (configurationCacheEnabled) {
+            true -> 18
+            false -> 36
+            null -> 28
+        }
+        val fallbackAnnotation = if (usesKapt) 22 else 10
+        val fallbackExecution = (100 - fallbackConfig - fallbackAnnotation).coerceAtLeast(10)
+
+        val configShare = if (totalMs > 0) ((configDuration.toDouble() / totalMs) * 100).toInt() else fallbackConfig
+        val annotationShare = if (totalMs > 0) (((annotationMs ?: 0).toDouble() / totalMs) * 100).toInt() else fallbackAnnotation
+        val executionShare = if (totalMs > 0) (100 - configShare - annotationShare).coerceAtLeast(0) else fallbackExecution
 
         val actionsJson = report.actions?.joinToString(prefix = "[", postfix = "]") { action ->
             """{
@@ -43,6 +71,21 @@ object HtmlTemplates {
                 impactTotals: {
                     buildHealth: $buildImpactTotal,
                     modernization: $modernizationImpactTotal
+                },
+                diagnostics: {
+                    configurationMs: $configDuration,
+                    executionMs: $executionDuration,
+                    cacheHits: $cacheHits,
+                    cacheMisses: $cacheMisses,
+                    incrementalCompilation: $incrementalCompile,
+                    configCacheRequested: $configCacheRequested,
+                    outdatedDeps: $outdatedDeps,
+                    duplicateDeps: $duplicateDeps
+                },
+                buildTimeBreakdown: {
+                    configuration: $configShare,
+                    execution: $executionShare,
+                    annotation: $annotationShare
                 },
                 actions: $actionsJson
             };

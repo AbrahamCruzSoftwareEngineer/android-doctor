@@ -11,19 +11,28 @@ object HtmlComponents {
             ?.takeIf { it.isNotBlank() && it != ":" }
             ?: "Unknown"
         val status = report.status?.takeIf { it.isNotBlank() && it.lowercase() != "skeleton" } ?: "Unknown"
-        val generated = if (showGenerated) "<p><strong>Generated:</strong> ${HtmlSections.formattedGenerated(report)}</p>" else ""
+        val generatedMetaLine =
+            if (showGenerated) "<div><strong>Generated:</strong> ${HtmlSections.formattedGenerated(report)}</div>" else ""
         val pathLine = if (path == "Unknown") "" else "<div><strong>Path:</strong> $path</div>"
         val statusLine = if (status == "Unknown") "" else "<div><strong>Status:</strong> $status</div>"
 
         return """
-        <section class="card">
-            <h2>Project Overview</h2>
+        <section class="card overview-card">
+            <div class="overview-header">
+                <div>
+                    <p class="overview-eyebrow">Project Overview</p>
+                    <h2 class="overview-title">$name</h2>
+                </div>
+            <div class="overview-meta">
+                $generatedMetaLine
+            </div>
+            </div>
+            <div class="overview-divider"></div>
             <div class="info-grid">
                 <div><strong>Project:</strong> $name</div>
                 $pathLine
                 $statusLine
             </div>
-            $generated
         </section>
         """.trimIndent()
     }
@@ -71,9 +80,25 @@ object HtmlComponents {
     }
 
     private fun actionItem(action: ActionInfo): String {
+        val severity = action.severity?.uppercase() ?: "INFO"
+        val severityClass = when (severity) {
+            "HIGH" -> "chip--high"
+            "MEDIUM" -> "chip--medium"
+            "LOW" -> "chip--low"
+            else -> "chip--neutral"
+        }
+        val effort = action.effort?.uppercase()
+        val effortChip = effort?.let { """<span class="chip chip--effort">Effort: $it</span>""" } ?: ""
+
         return """
         <div class="action-item">
-            <h3>${action.title}</h3>
+            <div class="action-header">
+                <h3>${action.title}</h3>
+                <div class="action-chips">
+                    <span class="chip $severityClass">$severity</span>
+                    $effortChip
+                </div>
+            </div>
             <p><strong>Why:</strong> ${action.why}</p>
             <p><strong>How:</strong> ${action.how}</p>
             <p class="impact">
@@ -96,6 +121,456 @@ object HtmlComponents {
             </div>
         </section>
         """.trimIndent()
+    }
+
+    fun chartsGrid(cards: List<String>): String {
+        return """
+        <div class="charts-grid">
+            ${cards.joinToString("\n")}
+        </div>
+        """.trimIndent()
+    }
+
+    fun diagnosticsSummaryCard(report: AndroidDoctorReport): String {
+        val configMs = report.performance?.configurationMs?.let { "${it} ms" }
+            ?: report.diagnostics?.configuration?.durationMs?.let { "${it} ms" }
+            ?: "Unknown"
+        val execMs = report.performance?.executionMs?.let { "${it} ms" }
+            ?: report.diagnostics?.execution?.durationMs?.let { "${it} ms" }
+            ?: "Unknown"
+        val cacheHits = report.cache?.hits ?: report.diagnostics?.buildCache?.hits
+        val cacheMisses = report.cache?.misses ?: report.diagnostics?.buildCache?.misses
+        val cacheSummary = if (cacheHits != null || cacheMisses != null) {
+            "Hits ${cacheHits ?: 0} / Misses ${cacheMisses ?: 0}"
+        } else {
+            "Unknown"
+        }
+        val configCache = report.diagnostics?.configurationCache
+        val configCacheRequested = configCache?.requested?.let { if (it) "Requested" else "Not requested" } ?: "Unknown"
+        val depSummary = report.dependencies?.let {
+            val dup = it.duplicates?.size ?: 0
+            val outdated = it.outdated?.size ?: 0
+            "Duplicates $dup • Outdated $outdated"
+        } ?: "Unknown"
+        val ci = report.environment?.ci?.let { if (it) "CI" else "Local" } ?: "Unknown"
+
+        return """
+        <section class="card">
+            <h2>Diagnostics Summary</h2>
+            <div class="info-grid">
+                <div><strong>Config Time:</strong> $configMs</div>
+                <div><strong>Execution Time:</strong> $execMs</div>
+                <div><strong>Build Cache:</strong> $cacheSummary</div>
+                <div><strong>Config Cache:</strong> $configCacheRequested</div>
+                <div><strong>Dependencies:</strong> $depSummary</div>
+                <div><strong>Environment:</strong> $ci</div>
+            </div>
+        </section>
+        """.trimIndent()
+    }
+
+    fun buildPerformanceCard(report: AndroidDoctorReport): String {
+        val configMs = report.performance?.configurationMs ?: report.diagnostics?.configuration?.durationMs
+        val execMs = report.performance?.executionMs ?: report.diagnostics?.execution?.durationMs
+        val cacheHits = report.cache?.hits ?: report.diagnostics?.buildCache?.hits
+        val cacheMisses = report.cache?.misses ?: report.diagnostics?.buildCache?.misses
+        val incremental = report.performance?.incrementalCompilation
+            ?: report.diagnostics?.buildCache?.incrementalCompilationUsed
+        val tasks = report.diagnostics?.execution?.topLongestTasks.orEmpty()
+        val hasTiming = configMs != null || execMs != null || tasks.isNotEmpty()
+        val tasksRows = if (tasks.isEmpty()) {
+            "<tr><td colspan=\"3\" class=\"muted\">No task timing data available.</td></tr>"
+        } else {
+            tasks.joinToString("\n") { task ->
+                val heatClass = durationHeatClass(task.durationMs)
+                """
+                <tr class="$heatClass">
+                    <td>${task.path ?: "Unknown"}</td>
+                    <td>${task.projectPath ?: "-"}</td>
+                    <td>${task.durationMs?.let { "${it} ms" } ?: "Unknown"}</td>
+                </tr>
+                """.trimIndent()
+            }
+        }
+
+        return """
+        <section class="card">
+            <h2>Build Performance</h2>
+            <div class="info-grid">
+                <div><strong>Configuration:</strong> ${configMs?.let { "${it} ms" } ?: "Unknown"}</div>
+                <div><strong>Execution:</strong> ${execMs?.let { "${it} ms" } ?: "Unknown"}</div>
+                <div><strong>Build Cache:</strong> Hits ${cacheHits ?: 0} / Misses ${cacheMisses ?: 0}</div>
+                <div><strong>Incremental Compile:</strong> ${formatBoolean(incremental)}</div>
+            </div>
+            ${if (!hasTiming) "<p class=\"warning\">No timing data detected. Consider enabling Gradle Build Scan or profiling to capture task timings.</p>" else ""}
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Task</th>
+                            <th>Module</th>
+                            <th>Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        $tasksRows
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        """.trimIndent()
+    }
+
+    fun configurationCacheCard(report: AndroidDoctorReport): String {
+        val config = report.diagnostics?.configurationCache
+        val requested = formatBoolean(config?.requested)
+        val stored = formatBoolean(config?.stored)
+        val reused = formatBoolean(config?.reused)
+        val incompatible = config?.incompatibleTasks?.toString() ?: "Unknown"
+        val warning = if (config?.requested == true && config?.reused != true) {
+            "<p class=\"warning\">Configuration cache was requested but not reused.</p>"
+        } else ""
+
+        return """
+        <section class="card">
+            <h2>Configuration Cache Report</h2>
+            <div class="info-grid">
+                <div><strong>Requested:</strong> $requested</div>
+                <div><strong>Stored:</strong> $stored</div>
+                <div><strong>Reused:</strong> $reused</div>
+                <div><strong>Incompatible Tasks:</strong> $incompatible</div>
+            </div>
+            $warning
+        </section>
+        """.trimIndent()
+    }
+
+    fun dependencyInsightsCard(report: AndroidDoctorReport): String {
+        val deps = report.dependencies
+        val outdatedRows = deps?.outdated?.joinToString("\n") { item ->
+            """
+            <tr>
+                <td>${item.group ?: "?"}:${item.name ?: "?"}</td>
+                <td>${item.currentVersion ?: "?"}</td>
+                <td>${item.latestVersion ?: "?"}</td>
+            </tr>
+            """.trimIndent()
+        } ?: ""
+        val outdatedBody = if (outdatedRows.isBlank()) {
+            "<tr><td colspan=\"3\" class=\"muted\">No outdated libraries detected.</td></tr>"
+        } else outdatedRows
+
+        val duplicates = deps?.duplicates.orEmpty()
+        val duplicatesRows = if (duplicates.isEmpty()) {
+            "<tr><td colspan=\"2\" class=\"muted\">No duplicate modules detected.</td></tr>"
+        } else {
+            duplicates.joinToString("\n") { item ->
+                """
+                <tr>
+                    <td>${item.group ?: "?"}:${item.name ?: "?"}</td>
+                    <td>${item.versions?.joinToString(", ") ?: "?"}</td>
+                </tr>
+                """.trimIndent()
+            }
+        }
+
+        val unused = deps?.unused.orEmpty()
+        val unusedRows = if (unused.isEmpty()) {
+            "<tr><td colspan=\"3\" class=\"muted\">No unused dependencies flagged.</td></tr>"
+        } else {
+            unused.joinToString("\n") { item ->
+                """
+                <tr>
+                    <td>${item.group ?: "?"}:${item.name ?: "?"}</td>
+                    <td>${item.version ?: "?"}</td>
+                    <td>${item.configuration ?: "?"}</td>
+                </tr>
+                """.trimIndent()
+            }
+        }
+
+        val heavy = deps?.heavy.orEmpty()
+        val heavyRows = if (heavy.isEmpty()) {
+            "<tr><td colspan=\"3\" class=\"muted\">No heavy artifacts flagged.</td></tr>"
+        } else {
+            heavy.joinToString("\n") { item ->
+                """
+                <tr>
+                    <td>${item.group ?: "?"}:${item.name ?: "?"}</td>
+                    <td>${item.version ?: "?"}</td>
+                    <td>${formatBytes(item.sizeBytes)}</td>
+                </tr>
+                """.trimIndent()
+            }
+        }
+
+        return """
+        <section class="card">
+            <h2>Dependency Insights</h2>
+            <h3 class="section-subtitle">Outdated Libraries</h3>
+            <div class="table-wrapper">
+                <table>
+                    <thead><tr><th>Library</th><th>Current</th><th>Latest</th></tr></thead>
+                    <tbody>$outdatedBody</tbody>
+                </table>
+            </div>
+            <h3 class="section-subtitle">Duplicate Modules</h3>
+            <div class="table-wrapper">
+                <table>
+                    <thead><tr><th>Module</th><th>Versions</th></tr></thead>
+                    <tbody>$duplicatesRows</tbody>
+                </table>
+            </div>
+            <h3 class="section-subtitle">Unused Dependencies</h3>
+            <div class="table-wrapper">
+                <table>
+                    <thead><tr><th>Dependency</th><th>Version</th><th>Configuration</th></tr></thead>
+                    <tbody>$unusedRows</tbody>
+                </table>
+            </div>
+            <h3 class="section-subtitle">Heavy Artifacts</h3>
+            <div class="table-wrapper">
+                <table>
+                    <thead><tr><th>Artifact</th><th>Version</th><th>Size</th></tr></thead>
+                    <tbody>$heavyRows</tbody>
+                </table>
+            </div>
+        </section>
+        """.trimIndent()
+    }
+
+    fun toolchainCard(report: AndroidDoctorReport): String {
+        val toolchain = report.toolchain
+        val android = report.android
+        val warnings = if (toolchain?.jvmTargetMismatch == true) {
+            "<p class=\"warning\">JVM targets appear mismatched across toolchains.</p>"
+        } else ""
+
+        return """
+        <section class="card">
+            <h2>Toolchain Diagnostics</h2>
+            <div class="info-grid">
+                <div><strong>Kotlin Compiler:</strong> ${report.tooling?.kotlinCompilerVersion ?: "Unknown"}</div>
+                <div><strong>Kotlin JVM Target:</strong> ${toolchain?.kotlinJvmTarget ?: "Unknown"}</div>
+                <div><strong>Java Toolchain:</strong> ${toolchain?.javaToolchainVersion ?: "Unknown"}</div>
+                <div><strong>AGP Version:</strong> ${android?.agpVersion ?: "Unknown"}</div>
+                <div><strong>compileSdk:</strong> ${android?.compileSdk ?: "Unknown"}</div>
+                <div><strong>AGP Target/Source:</strong> ${toolchain?.agpCompileTarget ?: "Unknown"} / ${toolchain?.agpCompileSource ?: "Unknown"}</div>
+            </div>
+            $warnings
+        </section>
+        """.trimIndent()
+    }
+
+    fun moduleGraphCard(report: AndroidDoctorReport): String {
+        val modules = report.modulesDiagnostics?.modules.orEmpty()
+        val summaries = report.modules.orEmpty()
+        val composeFlag = report.android?.composeEnabled
+        val rows = when {
+            modules.isNotEmpty() -> modules.joinToString("\n") { module ->
+                """
+                <tr>
+                    <td>${module.path ?: "?"}</td>
+                    <td>${module.taskCount ?: 0}</td>
+                    <td>${module.executionMs?.let { "${it} ms" } ?: "Unknown"}</td>
+                    <td>${formatBoolean(module.usesKapt)}</td>
+                    <td>${formatBoolean(composeFlag)}</td>
+                    <td>${formatBoolean(module.buildCacheEnabled)}</td>
+                </tr>
+                """.trimIndent()
+            }
+            summaries.isNotEmpty() -> summaries.joinToString("\n") { module ->
+                """
+                <tr>
+                    <td>${module.name ?: "?"}</td>
+                    <td>${module.tasks ?: 0}</td>
+                    <td>${module.totalMs?.let { "${it} ms" } ?: "Unknown"}</td>
+                    <td>${formatBoolean(module.usesKapt)}</td>
+                    <td>${formatBoolean(composeFlag)}</td>
+                    <td>${formatBoolean(module.buildCacheEnabled)}</td>
+                </tr>
+                """.trimIndent()
+            }
+            else -> "<tr><td colspan=\"6\" class=\"muted\">No module data available.</td></tr>"
+        }
+
+        return """
+        <section class="card">
+            <h2>Module Graph Summary</h2>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Module</th>
+                            <th>Tasks</th>
+                            <th>Build Time</th>
+                            <th>kapt</th>
+                            <th>Compose</th>
+                            <th>Build Cache</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        $rows
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        """.trimIndent()
+    }
+
+    fun annotationProcessingCard(report: AndroidDoctorReport): String {
+        val annotation = report.annotationProcessing
+        val processors = annotation?.processors?.joinToString(", ") ?: "Unknown"
+
+        return """
+        <section class="card">
+            <h2>Annotation Processing Metrics</h2>
+            <div class="info-grid">
+                <div><strong>Processors:</strong> $processors</div>
+                <div><strong>Total Time:</strong> ${annotation?.totalProcessingMs?.let { "${it} ms" } ?: "Unknown"}</div>
+                <div><strong>Kapt Stub Overhead:</strong> ${annotation?.kaptStubGenerationMs?.let { "${it} ms" } ?: "Unknown"}</div>
+            </div>
+        </section>
+        """.trimIndent()
+    }
+
+    fun composeCompilerCard(report: AndroidDoctorReport): String {
+        val android = report.android
+        val enabled = formatBoolean(android?.composeEnabled)
+        val compiler = android?.composeCompilerVersion ?: "Unknown"
+        val metrics = formatBoolean(android?.composeMetricsEnabled)
+        val reports = formatBoolean(android?.composeReportsEnabled)
+        val warning = if (android?.composeEnabled == true && android.composeCompilerVersion.isNullOrBlank()) {
+            "<p class=\"warning\">Compose is enabled but compiler version was not detected.</p>"
+        } else ""
+
+        return """
+        <section class="card">
+            <h2>Compose Compiler Insights</h2>
+            <div class="info-grid">
+                <div><strong>Compose Enabled:</strong> $enabled</div>
+                <div><strong>Compiler Version:</strong> $compiler</div>
+                <div><strong>Metrics Enabled:</strong> $metrics</div>
+                <div><strong>Reports Enabled:</strong> $reports</div>
+            </div>
+            $warning
+        </section>
+        """.trimIndent()
+    }
+
+    fun environmentCard(report: AndroidDoctorReport): String {
+        val env = report.environment
+        return """
+        <section class="card">
+            <h2>Environment Metadata</h2>
+            <div class="info-grid">
+                <div><strong>OS:</strong> ${env?.os ?: "Unknown"}</div>
+                <div><strong>Architecture:</strong> ${env?.arch ?: "Unknown"}</div>
+                <div><strong>CI:</strong> ${formatBoolean(env?.ci)}</div>
+                <div><strong>RAM:</strong> ${env?.availableRamMb?.let { "${it} MB" } ?: "Unknown"}</div>
+            </div>
+        </section>
+        """.trimIndent()
+    }
+
+    fun architectureCard(report: AndroidDoctorReport): String {
+        val architecture = report.architecture
+        if (architecture == null) {
+            return """
+            <section class="card">
+                <h2>Architecture Diagnostics</h2>
+                <p class="muted">No architecture diagnostics available.</p>
+            </section>
+            """.trimIndent()
+        }
+
+        val distribution = architecture.distribution
+        val distributionRows = if (distribution == null) {
+            "<tr><td colspan=\"2\" class=\"muted\">No distribution data.</td></tr>"
+        } else {
+            """
+            <tr><td>MVC</td><td>${distribution.mvc ?: 0}%</td></tr>
+            <tr><td>MVP</td><td>${distribution.mvp ?: 0}%</td></tr>
+            <tr><td>MVVM</td><td>${distribution.mvvm ?: 0}%</td></tr>
+            <tr><td>MVI</td><td>${distribution.mvi ?: 0}%</td></tr>
+            """.trimIndent()
+        }
+
+        val violations = architecture.violations.orEmpty().joinToString("\n") { violation ->
+            val files = violation.files?.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "N/A"
+            """
+            <div class="callout warning">
+                <strong>${violation.type ?: "Violation"}:</strong> ${violation.message ?: "Details unavailable."}
+                <div class="muted">Files: $files</div>
+            </div>
+            """.trimIndent()
+        }.ifBlank { "<p class=\"muted\">No architecture violations detected.</p>" }
+
+        val moduleIssues = architecture.moduleCoupling.orEmpty().joinToString("\n") { issue ->
+            val modules = issue.modules?.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "N/A"
+            """
+            <div class="callout warning">
+                <strong>${issue.type ?: "Module issue"}:</strong> ${issue.message ?: "Details unavailable."}
+                <div class="muted">Modules: $modules</div>
+            </div>
+            """.trimIndent()
+        }.ifBlank { "<p class=\"muted\">No module coupling issues detected.</p>" }
+
+        val recommendations = architecture.recommendations.orEmpty().joinToString("\n") { rec ->
+            """
+            <div class="callout info">
+                <strong>${rec.title ?: "Recommendation"}:</strong> ${rec.details ?: ""}
+            </div>
+            """.trimIndent()
+        }.ifBlank { "<p class=\"muted\">No architecture recommendations available.</p>" }
+
+        return """
+        <section class="card">
+            <h2>Architecture Diagnostics</h2>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Pattern</th>
+                            <th>Detected</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        $distributionRows
+                    </tbody>
+                </table>
+            </div>
+            <h3>Violations</h3>
+            $violations
+            <h3>Module Coupling</h3>
+            $moduleIssues
+            <h3>Recommended Fixes</h3>
+            $recommendations
+        </section>
+        """.trimIndent()
+    }
+
+    private fun formatBoolean(value: Boolean?): String = when (value) {
+        true -> "Yes"
+        false -> "No"
+        null -> "Unknown"
+    }
+
+    private fun formatBytes(value: Long?): String {
+        if (value == null) return "Unknown"
+        val kb = value / 1024.0
+        val mb = kb / 1024.0
+        return if (mb >= 1) String.format("%.1f MB", mb) else String.format("%.0f KB", kb)
+    }
+
+    private fun durationHeatClass(durationMs: Long?): String {
+        return when {
+            durationMs == null -> ""
+            durationMs >= 2000 -> "heat-high"
+            durationMs >= 1000 -> "heat-medium"
+            durationMs >= 500 -> "heat-low"
+            else -> ""
+        }
     }
 
     fun upgradeBanner(): String = """
