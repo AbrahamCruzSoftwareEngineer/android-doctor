@@ -110,7 +110,7 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         )
 
         val actionsJson = actionsToJson(actions)
-        val buildMetrics = metricsService.orNull?.get()?.snapshot()
+        val buildMetrics = metricsService.orNull?.snapshot()
         val dependencyDiagnostics = collectDependencyDiagnostics(project)
         val moduleDiagnostics = collectModuleDiagnostics(project, buildMetrics)
         val annotationDiagnostics = collectAnnotationDiagnostics(project)
@@ -490,10 +490,13 @@ private fun readComposeReportsEnabledOrNull(project: Project): Boolean? {
 
 private fun readComposeCompilerFlag(project: Project, flag: String): Boolean? {
     return try {
-        val task = project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class.java)
-            .firstOrNull() ?: return null
-        val args = task.kotlinOptions.freeCompilerArgs
-        args.any { it.contains(flag) }
+        val task = findKotlinCompileTask(project) ?: return null
+        val kotlinOptions = task.javaClass.methods.firstOrNull { it.name == "getKotlinOptions" }
+            ?.invoke(task) ?: return null
+        val argsMethod = kotlinOptions.javaClass.methods.firstOrNull { it.name == "getFreeCompilerArgs" }
+            ?: return null
+        val args = argsMethod.invoke(kotlinOptions) as? Iterable<*> ?: return null
+        args.any { it?.toString()?.contains(flag) == true }
     } catch (_: Throwable) {
         null
     }
@@ -528,12 +531,19 @@ private fun readKotlinCompilerVersionOrNull(): String? {
 
 private fun readKotlinJvmTargetOrNull(project: Project): String? {
     return try {
-        val task = project.tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class.java)
-            .firstOrNull() ?: return null
-        task.kotlinOptions.jvmTarget
+        val task = findKotlinCompileTask(project) ?: return null
+        val kotlinOptions = task.javaClass.methods.firstOrNull { it.name == "getKotlinOptions" }
+            ?.invoke(task) ?: return null
+        val jvmTargetMethod = kotlinOptions.javaClass.methods.firstOrNull { it.name == "getJvmTarget" }
+            ?: return null
+        jvmTargetMethod.invoke(kotlinOptions)?.toString()
     } catch (_: Throwable) {
         null
     }
+}
+
+private fun findKotlinCompileTask(project: Project): Any? {
+    return project.tasks.firstOrNull { it.javaClass.name.contains("KotlinCompile") }
 }
 
 private fun readJavaTargetCompatibilityOrNull(project: Project): String? {
