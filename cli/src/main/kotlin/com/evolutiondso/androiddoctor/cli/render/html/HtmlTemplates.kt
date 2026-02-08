@@ -5,6 +5,16 @@ import com.evolutiondso.androiddoctor.cli.utils.DateFormatter
 
 object HtmlTemplates {
 
+    private fun escapeJs(value: String?): String {
+        return value
+            ?.replace("\\", "\\\\")
+            ?.replace("\"", "\\\"")
+            ?.replace("\n", "\\n")
+            ?.replace("\r", "\\r")
+            ?.replace("\t", "\\t")
+            ?: ""
+    }
+
     fun page(report: AndroidDoctorReport, bodyContent: String, premium: Boolean): String {
 
         val safeName = report.project?.name ?: "<unknown>"
@@ -26,7 +36,7 @@ object HtmlTemplates {
                 },
                 actions: ${report.actions?.joinToString(prefix = "[", postfix = "]") { action ->
             """{
-                        \"title\": \"${action.title}\",
+                        \"title\": \"${escapeJs(action.title)}\",
                         \"impact\": {
                             \"buildHealthDelta\": ${action.impact?.buildHealthDelta ?: 0},
                             \"modernizationDelta\": ${action.impact?.modernizationDelta ?: 0}

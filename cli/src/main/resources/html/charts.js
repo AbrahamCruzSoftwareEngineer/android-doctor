@@ -14,12 +14,23 @@ function themeColors() {
 
 function generateTrend(current) {
     if (current === null || current === undefined) return [60, 66, 72, 78];
+    if (current === 0) return [20, 34, 46, 58];
     return [
         Math.max(0, current - 18),
         Math.max(0, current - 10),
         Math.max(0, current - 4),
         current
     ];
+}
+
+function hasRealData(values) {
+    return values.some(value => typeof value === "number" && value !== 0);
+}
+
+function setNoData(chartId, visible) {
+    const emptyEl = document.querySelector(`[data-chart-empty="${chartId}"]`);
+    if (!emptyEl) return;
+    emptyEl.classList.toggle("is-visible", visible);
 }
 
 function createCharts(data) {
@@ -40,6 +51,12 @@ function createCharts(data) {
 
     const trendCanvas = document.getElementById("trendChart");
     if (trendCanvas) {
+        const trendHasData = hasRealData([build, modern]);
+        const trendBuild = trendHasData ? buildTrend : [28, 42, 55, 64];
+        const trendModern = trendHasData ? modernTrend : [22, 36, 49, 60];
+
+        setNoData("trendChart", !trendHasData);
+
         new Chart(trendCanvas, {
             type: "line",
             data: {
@@ -47,7 +64,7 @@ function createCharts(data) {
                 datasets: [
                     {
                         label: "Build Health",
-                        data: buildTrend,
+                        data: trendBuild,
                         borderColor: colors.primary,
                         backgroundColor: colors.primarySoft,
                         tension: 0.35,
@@ -55,7 +72,48 @@ function createCharts(data) {
                     },
                     {
                         label: "Modernization",
-                        data: modernTrend,
+                        data: trendModern,
+                        borderColor: colors.accent,
+                        tension: 0.35
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { labels: { color: colors.text } }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: colors.border }, ticks: { color: colors.text } },
+                    x: { grid: { color: colors.border }, ticks: { color: colors.text } }
+                }
+            }
+        });
+    }
+    const trendCanvas = document.getElementById("trendChart");
+    if (trendCanvas) {
+        const trendHasData = hasRealData([build, modern]);
+        const trendBuild = trendHasData ? buildTrend : [28, 42, 55, 64];
+        const trendModern = trendHasData ? modernTrend : [22, 36, 49, 60];
+
+        setNoData("trendChart", !trendHasData);
+
+        new Chart(trendCanvas, {
+            type: "line",
+            data: {
+                labels: ["v1", "v2", "v3", "Now"],
+                datasets: [
+                    {
+                        label: "Build Health",
+                        data: trendBuild,
+                        borderColor: colors.primary,
+                        backgroundColor: colors.primarySoft,
+                        tension: 0.35,
+                        fill: true
+                    },
+                    {
+                        label: "Modernization",
+                        data: trendModern,
                         borderColor: colors.accent,
                         tension: 0.35
                     }
@@ -76,6 +134,12 @@ function createCharts(data) {
 
     const impactCanvas = document.getElementById("impactChart");
     if (impactCanvas) {
+        const impactHasData = hasRealData([impactTotals.buildHealth ?? 0, impactTotals.modernization ?? 0]);
+        const impactBuild = impactHasData ? impactTotals.buildHealth ?? 0 : 8;
+        const impactModern = impactHasData ? impactTotals.modernization ?? 0 : 4;
+
+        setNoData("impactChart", !impactHasData);
+
         new Chart(impactCanvas, {
             type: "bar",
             data: {
@@ -83,12 +147,12 @@ function createCharts(data) {
                 datasets: [
                     {
                         label: "Build Health",
-                        data: [impactTotals.buildHealth ?? 0],
+                        data: [impactBuild],
                         backgroundColor: colors.primary
                     },
                     {
                         label: "Modernization",
-                        data: [impactTotals.modernization ?? 0],
+                        data: [impactModern],
                         backgroundColor: colors.accent
                     }
                 ]
@@ -108,6 +172,11 @@ function createCharts(data) {
 
     const radarCanvas = document.getElementById("radarChart");
     if (radarCanvas) {
+        const radarHasData = hasRealData([build, modern, composition]);
+        const radarValues = radarHasData ? [build, modern, composition] : [58, 46, 32];
+
+        setNoData("radarChart", !radarHasData);
+
         new Chart(radarCanvas, {
             type: "radar",
             data: {
@@ -115,7 +184,7 @@ function createCharts(data) {
                 datasets: [
                     {
                         label: "Score Breakdown",
-                        data: [build, modern, composition],
+                        data: radarValues,
                         backgroundColor: colors.primarySoft,
                         borderColor: colors.primary,
                         pointBackgroundColor: colors.primary

@@ -87,6 +87,7 @@ object HtmlComponents {
         <section class="card $widthClass">
             <h2>$title</h2>
             <div class="chart-wrapper">
+                <div class="chart-empty" data-chart-empty="$canvasId">No Data Available</div>
                 <canvas id="$canvasId"></canvas>
             </div>
         </section>
