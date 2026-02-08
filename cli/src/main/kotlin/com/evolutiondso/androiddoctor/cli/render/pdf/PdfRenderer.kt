@@ -110,12 +110,12 @@ object PdfRenderer {
 
                 writeLine("Architecture:")
                 val architecture = report.architecture
-                writeLine("MVC: ${architecture?.distribution?.mvc ?: 0}%")
-                writeLine("MVP: ${architecture?.distribution?.mvp ?: 0}%")
-                writeLine("MVVM: ${architecture?.distribution?.mvvm ?: 0}%")
-                writeLine("MVI: ${architecture?.distribution?.mvi ?: 0}%")
+                writeLine("MVC: ${architecture?.mvc ?: 0}%")
+                writeLine("MVP: ${architecture?.mvp ?: 0}%")
+                writeLine("MVVM: ${architecture?.mvvm ?: 0}%")
+                writeLine("MVI: ${architecture?.mvi ?: 0}%")
                 architecture?.violations.orEmpty().take(5).forEach { violation ->
-                    writeLine("  - ${violation.type}: ${violation.message}")
+                    writeLine("  - ${violation.type}: ${violation.description}")
                 }
                 writeLine("")
 

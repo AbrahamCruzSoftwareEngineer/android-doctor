@@ -221,38 +221,25 @@ data class ToolchainInfo(
 
 @Serializable
 data class ArchitectureDiagnosticsInfo(
-    val distribution: ArchitectureDistributionInfo? = null,
-    val violations: List<ArchitectureViolationInfo>? = null,
-    val moduleCoupling: List<ArchitectureModuleIssueInfo>? = null,
-    val recommendations: List<ArchitectureRecommendationInfo>? = null
-)
-
-@Serializable
-data class ArchitectureDistributionInfo(
     val mvc: Int? = null,
     val mvp: Int? = null,
     val mvvm: Int? = null,
-    val mvi: Int? = null
+    val mvi: Int? = null,
+    val violations: List<ArchitectureViolationInfo>? = null,
+    val recommendedFixes: List<ArchitectureFixInfo>? = null
 )
 
 @Serializable
 data class ArchitectureViolationInfo(
     val type: String? = null,
-    val message: String? = null,
-    val files: List<String>? = null
+    val file: String? = null,
+    val description: String? = null
 )
 
 @Serializable
-data class ArchitectureModuleIssueInfo(
-    val type: String? = null,
-    val message: String? = null,
-    val modules: List<String>? = null
-)
-
-@Serializable
-data class ArchitectureRecommendationInfo(
+data class ArchitectureFixInfo(
     val title: String? = null,
-    val details: String? = null
+    val description: String? = null
 )
 
 @Serializable

@@ -484,42 +484,30 @@ object HtmlComponents {
             """.trimIndent()
         }
 
-        val distribution = architecture.distribution
-        val distributionRows = if (distribution == null) {
+        val distributionRows = if (architecture.mvc == null && architecture.mvp == null && architecture.mvvm == null && architecture.mvi == null) {
             "<tr><td colspan=\"2\" class=\"muted\">No distribution data.</td></tr>"
         } else {
             """
-            <tr><td>MVC</td><td>${distribution.mvc ?: 0}%</td></tr>
-            <tr><td>MVP</td><td>${distribution.mvp ?: 0}%</td></tr>
-            <tr><td>MVVM</td><td>${distribution.mvvm ?: 0}%</td></tr>
-            <tr><td>MVI</td><td>${distribution.mvi ?: 0}%</td></tr>
+            <tr><td>MVC</td><td>${architecture.mvc ?: 0}%</td></tr>
+            <tr><td>MVP</td><td>${architecture.mvp ?: 0}%</td></tr>
+            <tr><td>MVVM</td><td>${architecture.mvvm ?: 0}%</td></tr>
+            <tr><td>MVI</td><td>${architecture.mvi ?: 0}%</td></tr>
             """.trimIndent()
         }
 
         val violations = architecture.violations.orEmpty().joinToString("\n") { violation ->
-            val files = violation.files?.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "N/A"
             """
             <div class="callout warning">
-                <strong>${violation.type ?: "Violation"}:</strong> ${violation.message ?: "Details unavailable."}
-                <div class="muted">Files: $files</div>
+                <strong>${violation.type ?: "Violation"}:</strong> ${violation.description ?: "Details unavailable."}
+                <div class="muted">File: ${violation.file ?: "N/A"}</div>
             </div>
             """.trimIndent()
         }.ifBlank { "<p class=\"muted\">No architecture violations detected.</p>" }
 
-        val moduleIssues = architecture.moduleCoupling.orEmpty().joinToString("\n") { issue ->
-            val modules = issue.modules?.takeIf { it.isNotEmpty() }?.joinToString(", ") ?: "N/A"
-            """
-            <div class="callout warning">
-                <strong>${issue.type ?: "Module issue"}:</strong> ${issue.message ?: "Details unavailable."}
-                <div class="muted">Modules: $modules</div>
-            </div>
-            """.trimIndent()
-        }.ifBlank { "<p class=\"muted\">No module coupling issues detected.</p>" }
-
-        val recommendations = architecture.recommendations.orEmpty().joinToString("\n") { rec ->
+        val recommendations = architecture.recommendedFixes.orEmpty().joinToString("\n") { rec ->
             """
             <div class="callout info">
-                <strong>${rec.title ?: "Recommendation"}:</strong> ${rec.details ?: ""}
+                <strong>${rec.title ?: "Recommendation"}:</strong> ${rec.description ?: ""}
             </div>
             """.trimIndent()
         }.ifBlank { "<p class=\"muted\">No architecture recommendations available.</p>" }
@@ -542,8 +530,6 @@ object HtmlComponents {
             </div>
             <h3>Violations</h3>
             $violations
-            <h3>Module Coupling</h3>
-            $moduleIssues
             <h3>Recommended Fixes</h3>
             $recommendations
         </section>

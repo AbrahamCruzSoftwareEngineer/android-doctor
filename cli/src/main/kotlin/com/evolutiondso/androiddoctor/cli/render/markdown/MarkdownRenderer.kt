@@ -57,17 +57,14 @@ object MarkdownRenderer {
             else -> "- No module data available."
         }
 
-        val architectureDistribution = architecture?.distribution?.let { dist ->
+        val architectureDistribution = architecture?.let { dist ->
             "- MVC: ${dist.mvc ?: 0}%\n- MVP: ${dist.mvp ?: 0}%\n- MVVM: ${dist.mvvm ?: 0}%\n- MVI: ${dist.mvi ?: 0}%"
         } ?: "- No distribution data."
         val architectureViolations = architecture?.violations.orEmpty().joinToString("\n") { violation ->
-            "- ${violation.type}: ${violation.message} (files: ${violation.files?.joinToString(", ") ?: "N/A"})"
+            "- ${violation.type}: ${violation.description} (file: ${violation.file ?: "N/A"})"
         }.ifBlank { "- None" }
-        val architectureModules = architecture?.moduleCoupling.orEmpty().joinToString("\n") { issue ->
-            "- ${issue.type}: ${issue.message} (modules: ${issue.modules?.joinToString(", ") ?: "N/A"})"
-        }.ifBlank { "- None" }
-        val architectureRecommendations = architecture?.recommendations.orEmpty().joinToString("\n") { rec ->
-            "- ${rec.title}: ${rec.details}"
+        val architectureRecommendations = architecture?.recommendedFixes.orEmpty().joinToString("\n") { rec ->
+            "- ${rec.title}: ${rec.description}"
         }.ifBlank { "- None" }
 
         return """
@@ -134,8 +131,6 @@ object MarkdownRenderer {
         $architectureDistribution
         ### Violations
         $architectureViolations
-        ### Module Coupling
-        $architectureModules
         ### Recommended Fixes
         $architectureRecommendations
 

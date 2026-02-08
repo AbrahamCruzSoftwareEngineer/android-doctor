@@ -2,11 +2,15 @@ package com.example.architecturesample
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.database.sqlite.SQLiteDatabase
 import android.os.Bundle
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import com.example.architecturesample.data.UserRepository
 import com.example.architecturesample.mvp.LoginContract
 import com.example.architecturesample.mvp.LoginPresenter
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import retrofit2.Call
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -27,7 +31,21 @@ class MainActivity : AppCompatActivity(), LoginContract.View {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
         val call: Call<String> = retrofit.create(Api::class.java).ping()
+        val db: SQLiteDatabase = openOrCreateDatabase("local.db", Context.MODE_PRIVATE, null)
+        db.execSQL("CREATE TABLE IF NOT EXISTS logs (id INTEGER PRIMARY KEY, message TEXT)")
+        db.execSQL("INSERT INTO logs (message) VALUES ('opened')")
+        val httpClient = OkHttpClient()
+        val request = Request.Builder().url("https://example.com/health").build()
+        try {
+            httpClient.newCall(request).execute().close()
+        } catch (_: Throwable) {
+            // ignore
+        }
+        val userRepository = UserRepository(statusView)
+        val userDto = userRepository.fetchUserDto()
+        val displayName = userDto.name.uppercase()
         statusView.text = "Loaded ${prefs.getString("last_user", "none")}"
+        statusView.append(" - $displayName")
         presenter.handleLogin("admin", "password")
         logUserAction("open")
     }

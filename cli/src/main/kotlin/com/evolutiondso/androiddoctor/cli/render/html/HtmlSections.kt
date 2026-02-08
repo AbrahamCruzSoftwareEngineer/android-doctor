@@ -22,6 +22,7 @@ object HtmlSections {
             HtmlComponents.chartsCard("Impact Summary", "impactChart"),
             HtmlComponents.chartsCard("Build Time Mix", "buildTimeChart"),
             HtmlComponents.chartsCard("Build Cache Activity", "buildCacheChart"),
+            HtmlComponents.chartsCard("Architecture Violations", "architectureViolationsChart"),
             HtmlComponents.chartsCard("Score Radar", "radarChart", fullWidth = true)
         )
 

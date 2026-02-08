@@ -75,15 +75,6 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         val mismatch =
             detectJvmTargetMismatch(kotlinJvmTarget, javaTargetCompatibility, agpCompileTarget)
 
-        // Compute scores
-        val scores = computeScores(
-            isAndroidProject = isAndroidProject,
-            usesKapt = usesKapt,
-            moduleCount = moduleCount,
-            configurationCacheEnabled = configurationCacheEnabled,
-            composeEnabled = composeEnabled
-        )
-
         // Known plugins
         val knownPluginIds = listOf(
             "com.android.application",
@@ -105,7 +96,15 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         val moduleDiagnostics = collectModuleDiagnostics(project, buildMetrics)
         val annotationDiagnostics = collectAnnotationDiagnostics(project, buildMetrics)
         val environmentDiagnostics = collectEnvironmentDiagnostics()
-        val architectureDiagnostics = collectArchitectureDiagnostics(project, moduleDiagnostics)
+        val architectureDiagnostics = ArchitectureAnalyzer().analyze(project)
+        val scores = computeScores(
+            isAndroidProject = isAndroidProject,
+            usesKapt = usesKapt,
+            moduleCount = moduleCount,
+            configurationCacheEnabled = configurationCacheEnabled,
+            composeEnabled = composeEnabled,
+            architectureDiagnostics = architectureDiagnostics
+        )
         val configCacheRequested = readConfigurationCacheRequestedOrNull(project)
 
         // Recommended actions
@@ -129,7 +128,8 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
             annotationDiagnostics = annotationDiagnostics,
             moduleDiagnostics = moduleDiagnostics,
             buildMetrics = buildMetrics,
-            environmentDiagnostics = environmentDiagnostics
+            environmentDiagnostics = environmentDiagnostics,
+            architectureDiagnostics = architectureDiagnostics
         )
 
         val actionsJson = actionsToJson(actions)
@@ -259,7 +259,8 @@ private fun computeScores(
     usesKapt: Boolean,
     moduleCount: Int,
     configurationCacheEnabled: Boolean?,
-    composeEnabled: Boolean?
+    composeEnabled: Boolean?,
+    architectureDiagnostics: ArchitectureDiagnostics
 ): Scores {
     var build = 100
 
@@ -289,6 +290,16 @@ private fun computeScores(
             false -> modern -= 10
             null -> modern -= 3
         }
+    }
+
+    if (architectureDiagnostics.mvvm > 0) {
+        modern += 20
+    }
+    if (architectureDiagnostics.mvi > 0) {
+        modern += 15
+    }
+    if (architectureDiagnostics.violations.any { it.type == "MissingDomainLayer" }) {
+        modern -= 20
     }
 
     modern = modern.coerceIn(0, 100)
@@ -333,7 +344,8 @@ private fun buildTopActions(
     annotationDiagnostics: AnnotationDiagnostics,
     moduleDiagnostics: ModuleDiagnostics,
     buildMetrics: BuildMetricsSnapshot?,
-    environmentDiagnostics: EnvironmentDiagnostics
+    environmentDiagnostics: EnvironmentDiagnostics,
+    architectureDiagnostics: ArchitectureDiagnostics
 ): List<Action> {
 
     val actions = mutableListOf<Action>()
@@ -766,6 +778,71 @@ private fun buildTopActions(
         )
     }
 
+    if (architectureDiagnostics.violations.any { it.type == "MissingDomainLayer" }) {
+        actions += Action(
+            id = "INTRODUCE_DOMAIN_LAYER",
+            priority = 1,
+            severity = "HIGH",
+            effort = "M",
+            title = "Introduce Domain Layer",
+            why = "A domain layer is missing, which increases coupling between UI and data layers.",
+            how = "Add a domain module with use-cases and interfaces; migrate UI to depend on domain contracts.",
+            impact = Impact(6, 12)
+        )
+    }
+
+    if (architectureDiagnostics.violations.any { it.type == "GodActivity" }) {
+        actions += Action(
+            id = "BREAK_GOD_ACTIVITY",
+            priority = 1,
+            severity = "HIGH",
+            effort = "M",
+            title = "Break God Activity into ViewModel + UI state",
+            why = "Oversized Activities/Fragments reduce maintainability and slow down feature delivery.",
+            how = "Extract UI state to ViewModels and move business logic to use-cases or repositories.",
+            impact = Impact(8, 10)
+        )
+    }
+
+    if (architectureDiagnostics.violations.any { it.type == "RepositoryReturnsDTO" }) {
+        actions += Action(
+            id = "REMOVE_DTOS_FROM_UI",
+            priority = 2,
+            severity = "MEDIUM",
+            effort = "S",
+            title = "Remove DTOs from UI",
+            why = "Repositories are returning DTOs directly, leaking data-layer details to UI.",
+            how = "Map DTOs to domain models in repositories and expose only domain entities to UI.",
+            impact = Impact(4, 8)
+        )
+    }
+
+    if (architectureDiagnostics.violations.any { it.type == "ModuleCoupling" }) {
+        actions += Action(
+            id = "DECOUPLE_MODULES",
+            priority = 2,
+            severity = "MEDIUM",
+            effort = "M",
+            title = "Decouple modules via interfaces",
+            why = "Feature modules depend on :app, which limits reuse and increases build coupling.",
+            how = "Move shared contracts to a core/domain module and invert dependencies.",
+            impact = Impact(6, 6)
+        )
+    }
+
+    if (architectureDiagnostics.violations.any { it.type == "ArchitectureInconsistency" }) {
+        actions += Action(
+            id = "STANDARDIZE_ARCHITECTURE",
+            priority = 2,
+            severity = "MEDIUM",
+            effort = "M",
+            title = "Standardize architecture pattern (choose MVVM or MVI)",
+            why = "Multiple patterns are present, which increases maintenance overhead and onboarding cost.",
+            how = "Pick a primary pattern and migrate remaining modules incrementally.",
+            impact = Impact(4, 8)
+        )
+    }
+
     return actions
         .sortedWith(compareBy<Action> { it.priority }.thenBy { it.id })
         .take(5)
@@ -1118,47 +1195,6 @@ private data class EnvironmentDiagnostics(
     }
 }
 
-private data class ArchitectureDistribution(
-    val mvc: Int,
-    val mvp: Int,
-    val mvvm: Int,
-    val mvi: Int
-)
-
-private data class ArchitectureViolation(
-    val type: String,
-    val message: String,
-    val files: List<String>
-)
-
-private data class ArchitectureModuleIssue(
-    val type: String,
-    val message: String,
-    val modules: List<String>
-)
-
-private data class ArchitectureRecommendation(
-    val title: String,
-    val details: String
-)
-
-private data class ArchitectureDiagnostics(
-    val distribution: ArchitectureDistribution,
-    val violations: List<ArchitectureViolation>,
-    val moduleCoupling: List<ArchitectureModuleIssue>,
-    val recommendations: List<ArchitectureRecommendation>
-) {
-    fun toJson(): String {
-        return """
-        {
-          "distribution": ${distributionToJson(distribution)},
-          "violations": ${architectureViolationsToJson(violations)},
-          "moduleCoupling": ${architectureModuleIssuesToJson(moduleCoupling)},
-          "recommendations": ${architectureRecommendationsToJson(recommendations)}
-        }
-        """.trimIndent()
-    }
-}
 
 private fun collectDependencyDiagnostics(project: Project): DependencyDiagnostics {
     val duplicates = mutableListOf<DependencyDuplicate>()
@@ -1305,218 +1341,6 @@ private fun collectEnvironmentDiagnostics(): EnvironmentDiagnostics {
     )
 }
 
-private fun collectArchitectureDiagnostics(
-    project: Project,
-    moduleDiagnostics: ModuleDiagnostics
-): ArchitectureDiagnostics {
-    val sourceFiles = project.rootProject.fileTree(project.rootProject.projectDir).apply {
-        include("**/*.kt", "**/*.java")
-        exclude("**/build/**", "**/.gradle/**", "**/generated/**", "**/test/**", "**/androidTest/**")
-    }.files
-
-    val activityFiles = mutableListOf<java.io.File>()
-    val fragmentFiles = mutableListOf<java.io.File>()
-    val presenterFiles = mutableListOf<java.io.File>()
-    val viewModelFiles = mutableListOf<java.io.File>()
-    val reducerFiles = mutableListOf<java.io.File>()
-    val stateFiles = mutableListOf<java.io.File>()
-    val actionFiles = mutableListOf<java.io.File>()
-
-    sourceFiles.forEach { file ->
-        val name = file.name
-        when {
-            name.endsWith("Activity.kt") || name.endsWith("Activity.java") -> activityFiles += file
-            name.endsWith("Fragment.kt") || name.endsWith("Fragment.java") -> fragmentFiles += file
-        }
-        if (name.contains("Presenter")) presenterFiles += file
-        if (name.contains("ViewModel")) viewModelFiles += file
-        if (name.contains("Reducer")) reducerFiles += file
-        if (name.contains("State")) stateFiles += file
-        if (name.contains("Action")) actionFiles += file
-    }
-
-    val mvcCount = activityFiles.size + fragmentFiles.size
-    val mvpCount = presenterFiles.size
-    val mvvmCount = viewModelFiles.size
-    val mviCount = reducerFiles.size + stateFiles.size + actionFiles.size
-    val total = listOf(mvcCount, mvpCount, mvvmCount, mviCount).sum().coerceAtLeast(1)
-
-    val distribution = ArchitectureDistribution(
-        mvc = (mvcCount * 100) / total,
-        mvp = (mvpCount * 100) / total,
-        mvvm = (mvvmCount * 100) / total,
-        mvi = (mviCount * 100) / total
-    )
-
-    val violations = mutableListOf<ArchitectureViolation>()
-
-    fun fileLines(file: java.io.File): List<String> = runCatching { file.readLines() }.getOrDefault(emptyList())
-    fun fileText(file: java.io.File): String = runCatching { file.readText() }.getOrDefault("")
-
-    val godActivityFiles = activityFiles.filter { fileLines(it).size > 500 }.map { it.relativeTo(project.rootProject.projectDir).path }
-    if (godActivityFiles.isNotEmpty()) {
-        violations += ArchitectureViolation(
-            type = "GodActivity",
-            message = "Activities exceeding 500 LOC detected. Extract UI logic into ViewModels/UseCases and split screens.",
-            files = godActivityFiles
-        )
-    }
-
-    val networkingKeywords = listOf("Retrofit", "OkHttp", "OkHttpClient", "HttpUrlConnection", "Room", "SQLite", "Realm")
-    val networkInUi = (activityFiles + fragmentFiles).filter { file ->
-        val text = fileText(file)
-        networkingKeywords.any { text.contains(it) }
-    }.map { it.relativeTo(project.rootProject.projectDir).path }
-    if (networkInUi.isNotEmpty()) {
-        violations += ArchitectureViolation(
-            type = "UiNetworking",
-            message = "Networking/database code detected in Activities/Fragments. Move IO work to repositories or data sources.",
-            files = networkInUi
-        )
-    }
-
-    val repositoryFiles = sourceFiles.filter { it.name.contains("Repository") }
-    val repositoryWithRetrofit = repositoryFiles.filter { file ->
-        val text = fileText(file)
-        text.contains("retrofit2.Response") || text.contains("Call<") || text.contains("Response<") || text.contains("Retrofit")
-    }.map { it.relativeTo(project.rootProject.projectDir).path }
-    if (repositoryWithRetrofit.isNotEmpty()) {
-        violations += ArchitectureViolation(
-            type = "RepositoryDtoLeak",
-            message = "Repositories appear to return Retrofit DTOs directly. Map DTOs to domain models before exposing to UI.",
-            files = repositoryWithRetrofit
-        )
-    }
-
-    val repositoryUiAccess = repositoryFiles.filter { file ->
-        val text = fileText(file)
-        text.contains("TextView") || text.contains("RecyclerView") || text.contains("Activity") ||
-            text.contains("Fragment") || text.contains("findViewById")
-    }.map { it.relativeTo(project.rootProject.projectDir).path }
-    if (repositoryUiAccess.isNotEmpty()) {
-        violations += ArchitectureViolation(
-            type = "RepositoryUiAccess",
-            message = "Repositories referencing UI elements detected. Repositories should stay in the data layer.",
-            files = repositoryUiAccess
-        )
-    }
-
-    val viewModelWithContext = viewModelFiles.filter { file ->
-        val text = fileText(file)
-        text.contains("Context") || text.contains("Application")
-    }.map { it.relativeTo(project.rootProject.projectDir).path }
-    if (viewModelWithContext.isNotEmpty()) {
-        violations += ArchitectureViolation(
-            type = "ViewModelContext",
-            message = "ViewModels referencing Context/Application detected. Use injected abstractions for IO and resources.",
-            files = viewModelWithContext
-        )
-    }
-
-    val mutableMviState = (stateFiles + reducerFiles).filter { file ->
-        val text = fileText(file)
-        text.contains("var ") || text.contains("Mutable") || text.contains("mutable")
-    }.map { it.relativeTo(project.rootProject.projectDir).path }
-    if (mutableMviState.isNotEmpty()) {
-        violations += ArchitectureViolation(
-            type = "MutableMviState",
-            message = "Mutable state detected in MVI types. Use immutable data classes and reducers that return new state.",
-            files = mutableMviState
-        )
-    }
-
-    val hasDomainLayer = project.rootProject.allprojects.any { module ->
-        val base = module.projectDir
-        listOf("src/main/java", "src/main/kotlin").any { path ->
-            java.io.File(base, path).walkTopDown().any { it.isDirectory && it.name.equals("domain", ignoreCase = true) }
-        }
-    }
-    if (!hasDomainLayer) {
-        violations += ArchitectureViolation(
-            type = "MissingDomainLayer",
-            message = "No domain layer detected. Introduce domain models and use-cases to decouple UI and data.",
-            files = emptyList()
-        )
-    }
-
-    val moduleIssues = mutableListOf<ArchitectureModuleIssue>()
-    val featureDependsOnApp = moduleDiagnostics.dependencies.filter { dep ->
-        dep.from.contains("feature", ignoreCase = true) && dep.to == ":app"
-    }
-    if (featureDependsOnApp.isNotEmpty()) {
-        moduleIssues += ArchitectureModuleIssue(
-            type = "FeatureDependsOnApp",
-            message = "Feature modules depend on :app. Flip dependencies so :app depends on feature modules.",
-            modules = featureDependsOnApp.map { "${it.from} -> ${it.to}" }
-        )
-    }
-
-    val cycles = detectModuleCycles(moduleDiagnostics.dependencies)
-    if (cycles.isNotEmpty()) {
-        moduleIssues += ArchitectureModuleIssue(
-            type = "CyclicDependencies",
-            message = "Cyclic module dependencies detected. Break cycles with shared interfaces or a domain module.",
-            modules = cycles
-        )
-    }
-
-    val recommendations = mutableListOf<ArchitectureRecommendation>()
-    if (godActivityFiles.isNotEmpty()) {
-        recommendations += ArchitectureRecommendation(
-            title = "Split oversized Activities into ViewModels and use-cases",
-            details = "Extract UI logic into ViewModels and move IO into repositories/use-cases. Keep Activities focused on rendering."
-        )
-    }
-    if (networkInUi.isNotEmpty()) {
-        recommendations += ArchitectureRecommendation(
-            title = "Move networking/database work out of UI layers",
-            details = "Introduce data sources and repositories; let Activities/Fragments observe state only."
-        )
-    }
-    if (repositoryWithRetrofit.isNotEmpty()) {
-        recommendations += ArchitectureRecommendation(
-            title = "Map DTOs to domain models in repositories",
-            details = "Avoid exposing Retrofit DTOs to UI. Use mappers to return domain models."
-        )
-    }
-    if (viewModelWithContext.isNotEmpty()) {
-        recommendations += ArchitectureRecommendation(
-            title = "Remove Context references from ViewModels",
-            details = "Inject resource providers or use Application-aware components only when unavoidable."
-        )
-    }
-    if (mutableMviState.isNotEmpty()) {
-        recommendations += ArchitectureRecommendation(
-            title = "Adopt immutable state for MVI",
-            details = "Use data classes and reducers that return a new state rather than mutating existing models."
-        )
-    }
-    if (!hasDomainLayer) {
-        recommendations += ArchitectureRecommendation(
-            title = "Introduce a domain layer",
-            details = "Add a domain module for business logic and use-cases to reduce layer mixing."
-        )
-    }
-    if (featureDependsOnApp.isNotEmpty()) {
-        recommendations += ArchitectureRecommendation(
-            title = "Decouple feature modules from :app",
-            details = "Invert module dependencies and expose shared contracts from a core or domain module."
-        )
-    }
-    if (cycles.isNotEmpty()) {
-        recommendations += ArchitectureRecommendation(
-            title = "Break cyclic dependencies",
-            details = "Move shared abstractions to a new module and make dependencies one-way."
-        )
-    }
-
-    return ArchitectureDiagnostics(
-        distribution = distribution,
-        violations = violations,
-        moduleCoupling = moduleIssues,
-        recommendations = recommendations
-    )
-}
 
 private fun duplicatesToJson(items: List<DependencyDuplicate>): String {
     if (items.isEmpty()) return "[]"
@@ -1621,89 +1445,4 @@ private fun moduleSummariesToJson(modules: ModuleDiagnostics): String {
         """.trimIndent()
     }
     return "[\n$json\n]"
-}
-
-private fun distributionToJson(distribution: ArchitectureDistribution): String {
-    return """
-    {
-      "mvc": ${distribution.mvc},
-      "mvp": ${distribution.mvp},
-      "mvvm": ${distribution.mvvm},
-      "mvi": ${distribution.mvi}
-    }
-    """.trimIndent()
-}
-
-private fun architectureViolationsToJson(items: List<ArchitectureViolation>): String {
-    if (items.isEmpty()) return "[]"
-    val json = items.joinToString(",\n") { item ->
-        val files = item.files.joinToString(prefix = "[", postfix = "]") { "\"${esc(it)}\"" }
-        """
-        {
-          "type": "${esc(item.type)}",
-          "message": "${esc(item.message)}",
-          "files": $files
-        }
-        """.trimIndent()
-    }
-    return "[\n$json\n]"
-}
-
-private fun architectureModuleIssuesToJson(items: List<ArchitectureModuleIssue>): String {
-    if (items.isEmpty()) return "[]"
-    val json = items.joinToString(",\n") { item ->
-        val modules = item.modules.joinToString(prefix = "[", postfix = "]") { "\"${esc(it)}\"" }
-        """
-        {
-          "type": "${esc(item.type)}",
-          "message": "${esc(item.message)}",
-          "modules": $modules
-        }
-        """.trimIndent()
-    }
-    return "[\n$json\n]"
-}
-
-private fun architectureRecommendationsToJson(items: List<ArchitectureRecommendation>): String {
-    if (items.isEmpty()) return "[]"
-    val json = items.joinToString(",\n") { item ->
-        """
-        {
-          "title": "${esc(item.title)}",
-          "details": "${esc(item.details)}"
-        }
-        """.trimIndent()
-    }
-    return "[\n$json\n]"
-}
-
-private fun detectModuleCycles(dependencies: List<ModuleDependency>): List<String> {
-    if (dependencies.isEmpty()) return emptyList()
-    val graph = dependencies.groupBy({ it.from }, { it.to })
-    val cycles = mutableListOf<String>()
-
-    fun dfs(node: String, path: MutableList<String>, visiting: MutableSet<String>, visited: MutableSet<String>) {
-        if (node in visiting) {
-            val cycleStart = path.indexOf(node).takeIf { it >= 0 } ?: return
-            val cycle = path.drop(cycleStart) + node
-            cycles += cycle.joinToString(" -> ")
-            return
-        }
-        if (node in visited) return
-        visiting += node
-        path += node
-        graph[node].orEmpty().forEach { neighbor ->
-            dfs(neighbor, path, visiting, visited)
-        }
-        path.removeAt(path.size - 1)
-        visiting -= node
-        visited += node
-    }
-
-    val visited = mutableSetOf<String>()
-    graph.keys.forEach { node ->
-        dfs(node, mutableListOf(), mutableSetOf(), visited)
-    }
-
-    return cycles.distinct()
 }

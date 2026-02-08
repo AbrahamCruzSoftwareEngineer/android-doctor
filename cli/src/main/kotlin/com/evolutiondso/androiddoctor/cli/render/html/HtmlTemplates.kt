@@ -36,6 +36,12 @@ object HtmlTemplates {
         val configCacheRequested = report.diagnostics?.configurationCache?.requested ?: false
         val outdatedDeps = report.dependencies?.outdated?.size ?: 0
         val duplicateDeps = report.dependencies?.duplicates?.size ?: 0
+        val architecture = report.architecture
+        val mvcScore = architecture?.mvc ?: 0
+        val mvpScore = architecture?.mvp ?: 0
+        val mvvmScore = architecture?.mvvm ?: 0
+        val mviScore = architecture?.mvi ?: 0
+        val architectureScore = (mvvmScore + mviScore).coerceAtMost(100)
 
         val annotationMs = report.annotationProcessing?.totalProcessingMs
         val totalMs = listOfNotNull(configDuration.takeIf { it > 0 }, executionDuration.takeIf { it > 0 }, annotationMs)
@@ -63,6 +69,21 @@ object HtmlTemplates {
             }"""
         } ?: "[]"
 
+        val architectureViolationsJson = architecture?.violations?.joinToString(prefix = "[", postfix = "]") { violation ->
+            """{
+                "type": "${escapeJs(violation.type)}",
+                "file": "${escapeJs(violation.file)}",
+                "description": "${escapeJs(violation.description)}"
+            }"""
+        } ?: "[]"
+
+        val architectureFixesJson = architecture?.recommendedFixes?.joinToString(prefix = "[", postfix = "]") { fix ->
+            """{
+                "title": "${escapeJs(fix.title)}",
+                "description": "${escapeJs(fix.description)}"
+            }"""
+        } ?: "[]"
+
         val dataJson = """
             window.__ANDROID_DOCTOR_DATA__ = {
                 buildHealth: $buildHealth,
@@ -86,6 +107,15 @@ object HtmlTemplates {
                     configuration: $configShare,
                     execution: $executionShare,
                     annotation: $annotationShare
+                },
+                architecture: {
+                    mvc: $mvcScore,
+                    mvp: $mvpScore,
+                    mvvm: $mvvmScore,
+                    mvi: $mviScore,
+                    score: $architectureScore,
+                    violations: $architectureViolationsJson,
+                    recommendedFixes: $architectureFixesJson
                 },
                 actions: $actionsJson
             };

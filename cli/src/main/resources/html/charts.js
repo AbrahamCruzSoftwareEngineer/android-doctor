@@ -54,6 +54,7 @@ function createCharts(data) {
     const build = data.buildHealth ?? 0;
     const modern = data.modernization ?? 0;
     const composition = data.composition ?? 0;
+    const architectureScore = data.architecture?.score ?? 0;
 
     const buildTrend = generateTrend(build);
     const modernTrend = generateTrend(modern);
@@ -243,17 +244,66 @@ function createCharts(data) {
         }));
     }
 
+    const violationsCanvas = document.getElementById("architectureViolationsChart");
+    if (violationsCanvas) {
+        const violations = data.architecture?.violations ?? [];
+        const counts = {
+            GodActivity: 0,
+            MissingDomainLayer: 0,
+            ArchitectureInconsistency: 0
+        };
+        violations.forEach((violation) => {
+            if (counts[violation.type] !== undefined) {
+                counts[violation.type] += 1;
+            }
+        });
+        const values = [counts.GodActivity, counts.MissingDomainLayer, counts.ArchitectureInconsistency];
+        const hasViolationData = hasRealData(values);
+
+        setNoData("architectureViolationsChart", !hasViolationData);
+
+        window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(violationsCanvas, {
+            type: "bar",
+            data: {
+                labels: ["God Activity", "Missing Domain", "Architecture Mix"],
+                datasets: [
+                    {
+                        label: "Violations",
+                        data: values,
+                        backgroundColor: colors.accent
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
+                transitions: {
+                    active: { animation: { duration: 0 } },
+                    resize: { animation: { duration: 0 } }
+                },
+                plugins: {
+                    legend: { labels: { color: colors.text } }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: colors.border }, ticks: { color: colors.text, precision: 0 } },
+                    x: { grid: { color: colors.border }, ticks: { color: colors.text } }
+                }
+            }
+        }));
+    }
+
     const radarCanvas = document.getElementById("radarChart");
     if (radarCanvas) {
-        const radarHasData = hasRealData([build, modern, composition]);
-        const radarValues = radarHasData ? [build, modern, composition] : [58, 46, 32];
+        const radarHasData = hasRealData([build, modern, composition, architectureScore]);
+        const radarValues = radarHasData ? [build, modern, composition, architectureScore] : [58, 46, 32, 40];
 
         setNoData("radarChart", !radarHasData);
 
         window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(radarCanvas, {
             type: "radar",
             data: {
-                labels: ["Build Health", "Modernization", "Composition"],
+                labels: ["Build Health", "Modernization", "Composition", "Architecture"],
                 datasets: [
                     {
                         label: "Score Breakdown",
