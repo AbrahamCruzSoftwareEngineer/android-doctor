@@ -84,6 +84,18 @@ object HtmlTemplates {
             }"""
         } ?: "[]"
 
+        val tests = report.tests
+        val testsJson = tests?.let {
+            """{
+                "total": ${it.total ?: 0},
+                "passed": ${it.passed ?: 0},
+                "failed": ${it.failed ?: 0},
+                "skipped": ${it.skipped ?: 0},
+                "durationMs": ${it.durationMs ?: 0},
+                "uiTestDurationMs": ${it.uiTestDurationMs ?: 0}
+            }"""
+        } ?: "null"
+
         val dataJson = """
             window.__ANDROID_DOCTOR_DATA__ = {
                 buildHealth: $buildHealth,
@@ -117,6 +129,7 @@ object HtmlTemplates {
                     violations: $architectureViolationsJson,
                     recommendedFixes: $architectureFixesJson
                 },
+                tests: $testsJson,
                 actions: $actionsJson
             };
         """.trimIndent()

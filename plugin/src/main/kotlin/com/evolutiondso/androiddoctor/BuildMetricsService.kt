@@ -8,14 +8,19 @@ import org.gradle.api.invocation.Gradle
 import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
 import org.gradle.api.tasks.TaskState
+import org.gradle.api.tasks.testing.TestDescriptor
+import org.gradle.api.tasks.testing.TestListener
+import org.gradle.api.tasks.testing.TestResult
 import org.gradle.api.Task
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicInteger
 
 abstract class BuildMetricsService : BuildService<BuildMetricsService.Params>,
     TaskExecutionListener,
-    BuildListener {
+    BuildListener,
+    TestListener {
 
     interface Params : BuildServiceParameters
 
@@ -31,6 +36,14 @@ abstract class BuildMetricsService : BuildService<BuildMetricsService.Params>,
     private val cacheMisses = AtomicLong(0)
     private val cacheSkipped = AtomicLong(0)
     private val incrementalCompilationUsed = AtomicLong(0)
+    private val kaptIncrementalUsed = AtomicLong(0)
+
+    private val testTotal = AtomicInteger(0)
+    private val testPassed = AtomicInteger(0)
+    private val testFailed = AtomicInteger(0)
+    private val testSkipped = AtomicInteger(0)
+    private val testTimings = CopyOnWriteArrayList<TestTiming>()
+    private val testFailures = CopyOnWriteArrayList<TestFailure>()
 
     override fun settingsEvaluated(settings: Settings) {
         configurationStart.compareAndSet(0, System.nanoTime())
@@ -82,6 +95,44 @@ abstract class BuildMetricsService : BuildService<BuildMetricsService.Params>,
         if (isIncrementalCompilation(task)) {
             incrementalCompilationUsed.compareAndSet(0, 1)
         }
+        if (isKaptIncremental(task)) {
+            kaptIncrementalUsed.compareAndSet(0, 1)
+        }
+    }
+
+    override fun beforeSuite(suite: TestDescriptor) = Unit
+
+    override fun afterSuite(suite: TestDescriptor, result: TestResult) = Unit
+
+    override fun beforeTest(testDescriptor: TestDescriptor) = Unit
+
+    override fun afterTest(testDescriptor: TestDescriptor, result: TestResult) {
+        testTotal.incrementAndGet()
+        when (result.resultType) {
+            TestResult.ResultType.SUCCESS -> testPassed.incrementAndGet()
+            TestResult.ResultType.FAILURE -> testFailed.incrementAndGet()
+            TestResult.ResultType.SKIPPED -> testSkipped.incrementAndGet()
+        }
+
+        val durationMs = (result.endTime - result.startTime).coerceAtLeast(0)
+        testTimings.add(
+            TestTiming(
+                className = testDescriptor.className ?: "<unknown>",
+                name = testDescriptor.name,
+                durationMs = durationMs
+            )
+        )
+
+        result.exception?.let { ex ->
+            testFailures.add(
+                TestFailure(
+                    className = testDescriptor.className ?: "<unknown>",
+                    name = testDescriptor.name,
+                    message = ex.message ?: "Test failed",
+                    stackTrace = ex.stackTraceToString()
+                )
+            )
+        }
     }
 
     fun snapshot(): BuildMetricsSnapshot {
@@ -101,7 +152,17 @@ abstract class BuildMetricsService : BuildService<BuildMetricsService.Params>,
             cacheHits = cacheHits.get().toInt(),
             cacheMisses = cacheMisses.get().toInt(),
             cacheSkipped = cacheSkipped.get().toInt(),
-            incrementalCompilationUsed = incrementalCompilationUsed.get() == 1L
+            incrementalCompilationUsed = incrementalCompilationUsed.get() == 1L,
+            kaptIncrementalUsed = kaptIncrementalUsed.get() == 1L,
+            tests = TestsSnapshot(
+                total = testTotal.get(),
+                passed = testPassed.get(),
+                failed = testFailed.get(),
+                skipped = testSkipped.get(),
+                durationMs = testTimings.sumOf { it.durationMs },
+                slowest = testTimings.sortedByDescending { it.durationMs }.take(5),
+                failures = testFailures.toList()
+            )
         )
     }
 
@@ -109,6 +170,18 @@ abstract class BuildMetricsService : BuildService<BuildMetricsService.Params>,
         return try {
             val taskClass = task.javaClass.name
             if (!taskClass.contains("KotlinCompile")) return false
+            val incrementalProp = task.javaClass.methods.firstOrNull { it.name == "isIncremental" }
+            val incremental = incrementalProp?.invoke(task) as? Boolean
+            incremental == true
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    private fun isKaptIncremental(task: Task): Boolean {
+        return try {
+            val taskClass = task.javaClass.name
+            if (!taskClass.contains("Kapt")) return false
             val incrementalProp = task.javaClass.methods.firstOrNull { it.name == "isIncremental" }
             val incremental = incrementalProp?.invoke(task) as? Boolean
             incremental == true
@@ -135,5 +208,30 @@ data class BuildMetricsSnapshot(
     val cacheHits: Int,
     val cacheMisses: Int,
     val cacheSkipped: Int,
-    val incrementalCompilationUsed: Boolean
+    val incrementalCompilationUsed: Boolean,
+    val kaptIncrementalUsed: Boolean,
+    val tests: TestsSnapshot
+)
+
+data class TestsSnapshot(
+    val total: Int,
+    val passed: Int,
+    val failed: Int,
+    val skipped: Int,
+    val durationMs: Long,
+    val slowest: List<TestTiming>,
+    val failures: List<TestFailure>
+)
+
+data class TestTiming(
+    val className: String,
+    val name: String,
+    val durationMs: Long
+)
+
+data class TestFailure(
+    val className: String,
+    val name: String,
+    val message: String,
+    val stackTrace: String
 )

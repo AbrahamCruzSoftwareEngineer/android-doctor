@@ -23,6 +23,7 @@ object HtmlSections {
             HtmlComponents.chartsCard("Build Time Mix", "buildTimeChart"),
             HtmlComponents.chartsCard("Build Cache Activity", "buildCacheChart"),
             HtmlComponents.chartsCard("Architecture Violations", "architectureViolationsChart"),
+            HtmlComponents.chartsCard("Test Results", "testResultsChart"),
             HtmlComponents.chartsCard("Score Radar", "radarChart", fullWidth = true)
         )
 
@@ -39,6 +40,7 @@ object HtmlSections {
             HtmlComponents.annotationProcessingCard(report),
             HtmlComponents.composeCompilerCard(report),
             HtmlComponents.environmentCard(report),
+            HtmlComponents.testsCard(report),
             HtmlComponents.architectureCard(report)
         ).joinToString("\n")
     }

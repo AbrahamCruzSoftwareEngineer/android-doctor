@@ -24,6 +24,7 @@ data class AndroidDoctorReport(
     val annotationProcessing: AnnotationProcessingInfo? = null,
     val environment: EnvironmentInfo? = null,
     val architecture: ArchitectureDiagnosticsInfo? = null,
+    val tests: TestsInfo? = null,
     val actions: List<ActionInfo>? = null,
     val plugins: PluginsInfo? = null,
     val notes: List<String>? = null
@@ -277,4 +278,31 @@ data class EnvironmentInfo(
     val arch: String? = null,
     val ci: Boolean? = null,
     val availableRamMb: Long? = null
+)
+
+@Serializable
+data class TestsInfo(
+    val total: Int? = null,
+    val passed: Int? = null,
+    val failed: Int? = null,
+    val skipped: Int? = null,
+    val durationMs: Long? = null,
+    val uiTestDurationMs: Long? = null,
+    val slowest: List<TestTimingInfo>? = null,
+    val failures: List<TestFailureInfo>? = null
+)
+
+@Serializable
+data class TestTimingInfo(
+    val className: String? = null,
+    val name: String? = null,
+    val durationMs: Long? = null
+)
+
+@Serializable
+data class TestFailureInfo(
+    val className: String? = null,
+    val name: String? = null,
+    val message: String? = null,
+    val stackTrace: String? = null
 )

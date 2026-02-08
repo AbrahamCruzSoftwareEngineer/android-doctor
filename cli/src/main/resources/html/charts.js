@@ -293,6 +293,47 @@ function createCharts(data) {
         }));
     }
 
+    const testResultsCanvas = document.getElementById("testResultsChart");
+    if (testResultsCanvas) {
+        const tests = data.tests ?? {};
+        const passed = tests.passed ?? 0;
+        const failed = tests.failed ?? 0;
+        const skipped = tests.skipped ?? 0;
+        const hasTestData = hasRealData([passed, failed, skipped]);
+
+        setNoData("testResultsChart", !hasTestData);
+
+        window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(testResultsCanvas, {
+            type: "bar",
+            data: {
+                labels: ["Passed", "Failed", "Skipped"],
+                datasets: [
+                    {
+                        label: "Tests",
+                        data: [passed, failed, skipped],
+                        backgroundColor: [colors.primary, colors.accent, colors.border]
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
+                transitions: {
+                    active: { animation: { duration: 0 } },
+                    resize: { animation: { duration: 0 } }
+                },
+                plugins: {
+                    legend: { labels: { color: colors.text } }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: colors.border }, ticks: { color: colors.text, precision: 0 } },
+                    x: { grid: { color: colors.border }, ticks: { color: colors.text } }
+                }
+            }
+        }));
+    }
+
     const radarCanvas = document.getElementById("radarChart");
     if (radarCanvas) {
         const radarHasData = hasRealData([build, modern, composition, architectureScore]);

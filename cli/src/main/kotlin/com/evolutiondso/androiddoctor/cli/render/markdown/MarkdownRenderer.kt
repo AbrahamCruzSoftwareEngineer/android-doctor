@@ -126,6 +126,14 @@ object MarkdownRenderer {
         - CI: ${report.environment?.ci ?: "Unknown"}
         - RAM: ${report.environment?.availableRamMb?.let { "${it} MB" } ?: "Unknown"}
 
+        ## Test Diagnostics
+        - Total: ${report.tests?.total ?: 0}
+        - Passed: ${report.tests?.passed ?: 0}
+        - Failed: ${report.tests?.failed ?: 0}
+        - Skipped: ${report.tests?.skipped ?: 0}
+        - Duration: ${report.tests?.durationMs?.let { "${it} ms" } ?: "Unknown"}
+        - UI Test Duration: ${report.tests?.uiTestDurationMs?.let { "${it} ms" } ?: "Unknown"}
+
         ## Architecture Diagnostics
         ### Detected Patterns
         $architectureDistribution

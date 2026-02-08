@@ -97,6 +97,7 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         val annotationDiagnostics = collectAnnotationDiagnostics(project, buildMetrics)
         val environmentDiagnostics = collectEnvironmentDiagnostics()
         val architectureDiagnostics = ArchitectureAnalyzer().analyze(project)
+        val testsDiagnostics = collectTestsDiagnostics(buildMetrics)
         val scores = computeScores(
             isAndroidProject = isAndroidProject,
             usesKapt = usesKapt,
@@ -195,6 +196,7 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
   "dependencies": ${dependencyDiagnostics.toJson()},
   "environment": ${environmentDiagnostics.toJson()},
   "architecture": ${architectureDiagnostics.toJson()},
+  "tests": ${testsDiagnostics.toJson()},
   "toolchain": {
     "javaToolchainVersion": ${quote(javaToolchainVersion)},
     "jvmTarget": ${quote(javaTargetCompatibility)},
@@ -1195,6 +1197,32 @@ private data class EnvironmentDiagnostics(
     }
 }
 
+private data class TestsDiagnostics(
+    val total: Int,
+    val passed: Int,
+    val failed: Int,
+    val skipped: Int,
+    val durationMs: Long?,
+    val uiTestDurationMs: Long?,
+    val slowest: List<TestTiming>,
+    val failures: List<TestFailure>
+) {
+    fun toJson(): String {
+        return """
+        {
+          "total": $total,
+          "passed": $passed,
+          "failed": $failed,
+          "skipped": $skipped,
+          "durationMs": ${durationMs ?: "null"},
+          "uiTestDurationMs": ${uiTestDurationMs ?: "null"},
+          "slowest": ${slowestTestsToJson(slowest)},
+          "failures": ${testFailuresToJson(failures)}
+        }
+        """.trimIndent()
+    }
+}
+
 
 private fun collectDependencyDiagnostics(project: Project): DependencyDiagnostics {
     val duplicates = mutableListOf<DependencyDuplicate>()
@@ -1341,6 +1369,25 @@ private fun collectEnvironmentDiagnostics(): EnvironmentDiagnostics {
     )
 }
 
+private fun collectTestsDiagnostics(buildMetrics: BuildMetricsSnapshot?): TestsDiagnostics {
+    val tests = buildMetrics?.tests
+    val uiTestDuration = buildMetrics?.taskDurations.orEmpty()
+        .filter { it.path.contains("connectedDebugAndroidTest", ignoreCase = true) }
+        .sumOf { it.durationMs }
+        .takeIf { it > 0 }
+
+    return TestsDiagnostics(
+        total = tests?.total ?: 0,
+        passed = tests?.passed ?: 0,
+        failed = tests?.failed ?: 0,
+        skipped = tests?.skipped ?: 0,
+        durationMs = tests?.durationMs,
+        uiTestDurationMs = uiTestDuration,
+        slowest = tests?.slowest.orEmpty(),
+        failures = tests?.failures.orEmpty()
+    )
+}
+
 
 private fun duplicatesToJson(items: List<DependencyDuplicate>): String {
     if (items.isEmpty()) return "[]"
@@ -1441,6 +1488,35 @@ private fun moduleSummariesToJson(modules: ModuleDiagnostics): String {
           "totalMs": ${module.executionMs ?: "null"},
           "usesKapt": ${module.usesKapt},
           "buildCacheEnabled": ${module.buildCacheEnabled}
+        }
+        """.trimIndent()
+    }
+    return "[\n$json\n]"
+}
+
+private fun slowestTestsToJson(items: List<TestTiming>): String {
+    if (items.isEmpty()) return "[]"
+    val json = items.joinToString(",\n") { item ->
+        """
+        {
+          "className": "${esc(item.className)}",
+          "name": "${esc(item.name)}",
+          "durationMs": ${item.durationMs}
+        }
+        """.trimIndent()
+    }
+    return "[\n$json\n]"
+}
+
+private fun testFailuresToJson(items: List<TestFailure>): String {
+    if (items.isEmpty()) return "[]"
+    val json = items.joinToString(",\n") { item ->
+        """
+        {
+          "className": "${esc(item.className)}",
+          "name": "${esc(item.name)}",
+          "message": "${esc(item.message)}",
+          "stackTrace": "${esc(item.stackTrace)}"
         }
         """.trimIndent()
     }
