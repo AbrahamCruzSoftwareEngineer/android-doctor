@@ -227,9 +227,11 @@ object HtmlComponents {
         val stored = formatBoolean(config?.stored)
         val reused = formatBoolean(config?.reused)
         val incompatible = config?.incompatibleTasks?.toString() ?: "Unknown"
-        val warning = if (config?.requested == true && config?.reused != true) {
-            "<p class=\"warning\">Configuration cache was requested but not reused.</p>"
-        } else ""
+        val warning = config?.let {
+            if (it.requested == true && it.reused != true) {
+                "<p class=\"warning\">Configuration cache was requested but not reused.</p>"
+            } else ""
+        } ?: ""
 
         return """
         <section class="card">

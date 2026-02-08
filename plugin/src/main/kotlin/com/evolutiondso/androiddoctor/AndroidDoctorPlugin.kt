@@ -18,8 +18,8 @@ class AndroidDoctorPlugin : Plugin<Project> {
         ) {}
 
         target.gradle.addListener(metricsService.get())
-        target.rootProject.allprojects {
-            tasks.withType(Test::class.java).configureEach {
+        target.rootProject.allprojects { project ->
+            project.tasks.withType(Test::class.java).configureEach {
                 it.addTestListener(metricsService.get())
             }
         }

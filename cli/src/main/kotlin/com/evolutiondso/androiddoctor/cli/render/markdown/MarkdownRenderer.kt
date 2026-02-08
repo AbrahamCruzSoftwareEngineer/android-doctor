@@ -47,8 +47,9 @@ object MarkdownRenderer {
             "- ${item.group}:${item.name} (${item.version ?: "?"}) ${item.sizeBytes ?: 0} bytes"
         }.ifBlank { "- None" }
 
+        val diagnosticsModules = report.modulesDiagnostics?.modules
         val moduleList = when {
-            report.modulesDiagnostics?.modules?.isNotEmpty() == true -> report.modulesDiagnostics?.modules.orEmpty().joinToString("\n") { module ->
+            diagnosticsModules?.isNotEmpty() == true -> diagnosticsModules.joinToString("\n") { module ->
                 "- ${module.path}: tasks ${module.taskCount ?: 0}, time ${module.executionMs?.let { "${it} ms" } ?: "Unknown"}, kapt ${module.usesKapt ?: "Unknown"}, cache ${module.buildCacheEnabled ?: "Unknown"}"
             }
             report.modules?.isNotEmpty() == true -> report.modules.orEmpty().joinToString("\n") { module ->
