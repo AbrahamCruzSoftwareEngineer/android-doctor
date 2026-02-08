@@ -174,6 +174,33 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
     "buildHealth": ${scores.buildHealth},
     "modernization": ${scores.modernization}
   },
+  "performance": {
+    "configurationMs": ${buildMetrics?.configurationDurationMs ?: "null"},
+    "executionMs": ${buildMetrics?.executionDurationMs ?: "null"},
+    "incrementalCompilation": ${buildMetrics?.incrementalCompilationUsed ?: false}
+  },
+  "cache": {
+    "hits": ${buildMetrics?.cacheHits ?: 0},
+    "misses": ${buildMetrics?.cacheMisses ?: 0}
+  },
+  "taskTimings": ${tasksToJson(buildMetrics?.taskDurations.orEmpty())},
+  "modules": ${moduleSummariesToJson(moduleDiagnostics)},
+  "compose": {
+    "enabled": $composeEnabledJson,
+    "compilerVersion": ${quote(composeCompilerVersion)},
+    "metricsEnabled": ${composeMetricsEnabled?.toString() ?: "null"},
+    "reportsEnabled": ${composeReportsEnabled?.toString() ?: "null"}
+  },
+  "dependencies": ${dependencyDiagnostics.toJson()},
+  "environment": ${environmentDiagnostics.toJson()},
+  "toolchain": {
+    "javaToolchainVersion": ${quote(javaToolchainVersion)},
+    "jvmTarget": ${quote(javaTargetCompatibility)},
+    "kotlinJvmTarget": ${quote(kotlinJvmTarget)},
+    "agpCompileTarget": ${quote(agpCompileTarget)},
+    "agpCompileSource": ${quote(agpCompileSource)},
+    "jvmTargetMismatch": ${mismatch?.toString() ?: "null"}
+  },
   "diagnostics": {
     "configuration": {
       "durationMs": ${buildMetrics?.configurationDurationMs ?: "null"}
@@ -196,18 +223,8 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
       "incompatibleTasks": null
     }
   },
-  "dependencies": ${dependencyDiagnostics.toJson()},
-  "toolchain": {
-    "javaToolchainVersion": ${quote(javaToolchainVersion)},
-    "jvmTarget": ${quote(javaTargetCompatibility)},
-    "kotlinJvmTarget": ${quote(kotlinJvmTarget)},
-    "agpCompileTarget": ${quote(agpCompileTarget)},
-    "agpCompileSource": ${quote(agpCompileSource)},
-    "jvmTargetMismatch": ${mismatch?.toString() ?: "null"}
-  },
-  "modules": ${moduleDiagnostics.toJson()},
+  "modulesDiagnostics": ${moduleDiagnostics.toJson()},
   "annotationProcessing": ${annotationDiagnostics.toJson()},
-  "environment": ${environmentDiagnostics.toJson()},
   "actions": $actionsJson,
   "plugins": {
     "appliedKnownPluginIds": [ $appliedKnownPluginsJson ]
@@ -1327,6 +1344,22 @@ private fun moduleDepsToJson(items: List<ModuleDependency>): String {
         {
           "from": "${esc(item.from)}",
           "to": "${esc(item.to)}"
+        }
+        """.trimIndent()
+    }
+    return "[\n$json\n]"
+}
+
+private fun moduleSummariesToJson(modules: ModuleDiagnostics): String {
+    if (modules.modules.isEmpty()) return "[]"
+    val json = modules.modules.joinToString(",\n") { module ->
+        """
+        {
+          "name": "${esc(module.path)}",
+          "tasks": ${module.taskCount},
+          "totalMs": ${module.executionMs ?: "null"},
+          "usesKapt": ${module.usesKapt},
+          "buildCacheEnabled": ${module.buildCacheEnabled}
         }
         """.trimIndent()
     }

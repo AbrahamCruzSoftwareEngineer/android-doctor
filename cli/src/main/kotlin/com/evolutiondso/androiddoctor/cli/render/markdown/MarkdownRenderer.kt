@@ -11,7 +11,8 @@ object MarkdownRenderer {
         val buildScore = report.scores?.buildHealth ?: 0
         val modernScore = report.scores?.modernization ?: 0
         val diagnostics = report.diagnostics
-        val cache = diagnostics?.buildCache
+        val cache = report.cache ?: diagnostics?.buildCache
+        val performance = report.performance
         val configCache = diagnostics?.configurationCache
         val deps = report.dependencies
 
@@ -44,9 +45,15 @@ object MarkdownRenderer {
             "- ${item.group}:${item.name} (${item.version ?: "?"}) ${item.sizeBytes ?: 0} bytes"
         }.ifBlank { "- None" }
 
-        val modules = report.modules?.modules.orEmpty().joinToString("\n") { module ->
-            "- ${module.path}: tasks ${module.taskCount ?: 0}, time ${module.executionMs?.let { "${it} ms" } ?: "Unknown"}, kapt ${module.usesKapt ?: "Unknown"}, cache ${module.buildCacheEnabled ?: "Unknown"}"
-        }.ifBlank { "- No module data available." }
+        val moduleList = when {
+            report.modulesDiagnostics?.modules?.isNotEmpty() == true -> report.modulesDiagnostics?.modules.orEmpty().joinToString("\n") { module ->
+                "- ${module.path}: tasks ${module.taskCount ?: 0}, time ${module.executionMs?.let { "${it} ms" } ?: "Unknown"}, kapt ${module.usesKapt ?: "Unknown"}, cache ${module.buildCacheEnabled ?: "Unknown"}"
+            }
+            report.modules?.isNotEmpty() == true -> report.modules.orEmpty().joinToString("\n") { module ->
+                "- ${module.name}: tasks ${module.tasks ?: 0}, time ${module.totalMs?.let { "${it} ms" } ?: "Unknown"}, kapt ${module.usesKapt ?: "Unknown"}, cache ${module.buildCacheEnabled ?: "Unknown"}"
+            }
+            else -> "- No module data available."
+        }
 
         return """
         # AndroidDoctor Premium Markdown Report
@@ -56,10 +63,10 @@ object MarkdownRenderer {
         **Modernization:** $modernScore  
 
         ## Build Performance
-        - Configuration: ${diagnostics?.configuration?.durationMs?.let { "${it} ms" } ?: "Unknown"}
-        - Execution: ${diagnostics?.execution?.durationMs?.let { "${it} ms" } ?: "Unknown"}
+        - Configuration: ${performance?.configurationMs?.let { "${it} ms" } ?: diagnostics?.configuration?.durationMs?.let { "${it} ms" } ?: "Unknown"}
+        - Execution: ${performance?.executionMs?.let { "${it} ms" } ?: diagnostics?.execution?.durationMs?.let { "${it} ms" } ?: "Unknown"}
         - Build Cache: Hits ${cache?.hits ?: 0} / Misses ${cache?.misses ?: 0}
-        - Incremental Compilation: ${cache?.incrementalCompilationUsed ?: "Unknown"}
+        - Incremental Compilation: ${performance?.incrementalCompilation ?: cache?.incrementalCompilationUsed ?: "Unknown"}
         - Longest Tasks:
         $longestTasks
 
@@ -88,7 +95,7 @@ object MarkdownRenderer {
         - JVM Mismatch: ${report.toolchain?.jvmTargetMismatch ?: "Unknown"}
 
         ## Module Graph Summary
-        $modules
+        $moduleList
 
         ## Annotation Processing Metrics
         - Processors: ${report.annotationProcessing?.processors?.joinToString(", ") ?: "Unknown"}

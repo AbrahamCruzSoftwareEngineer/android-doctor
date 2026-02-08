@@ -15,7 +15,12 @@ data class AndroidDoctorReport(
     val diagnostics: DiagnosticsInfo? = null,
     val dependencies: DependencyDiagnosticsInfo? = null,
     val toolchain: ToolchainInfo? = null,
-    val modules: ModulesInfo? = null,
+    val modules: List<ModuleSummaryInfo>? = null,
+    val modulesDiagnostics: ModulesInfo? = null,
+    val performance: PerformanceInfo? = null,
+    val cache: CacheStatsInfo? = null,
+    val taskTimings: List<TaskTimingSimpleInfo>? = null,
+    val compose: ComposeInfo? = null,
     val annotationProcessing: AnnotationProcessingInfo? = null,
     val environment: EnvironmentInfo? = null,
     val actions: List<ActionInfo>? = null,
@@ -82,6 +87,42 @@ data class ActionInfo(
 @Serializable
 data class PluginsInfo(
     val appliedKnownPluginIds: List<String>? = null
+)
+
+@Serializable
+data class PerformanceInfo(
+    val configurationMs: Long? = null,
+    val executionMs: Long? = null,
+    val incrementalCompilation: Boolean? = null
+)
+
+@Serializable
+data class CacheStatsInfo(
+    val hits: Int? = null,
+    val misses: Int? = null
+)
+
+@Serializable
+data class TaskTimingSimpleInfo(
+    val path: String? = null,
+    val ms: Long? = null
+)
+
+@Serializable
+data class ModuleSummaryInfo(
+    val name: String? = null,
+    val tasks: Int? = null,
+    val totalMs: Long? = null,
+    val usesKapt: Boolean? = null,
+    val buildCacheEnabled: Boolean? = null
+)
+
+@Serializable
+data class ComposeInfo(
+    val enabled: Boolean? = null,
+    val compilerVersion: String? = null,
+    val metricsEnabled: Boolean? = null,
+    val reportsEnabled: Boolean? = null
 )
 
 @Serializable

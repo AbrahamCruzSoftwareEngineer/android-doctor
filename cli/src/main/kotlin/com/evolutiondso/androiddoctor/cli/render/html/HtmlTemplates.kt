@@ -26,11 +26,13 @@ object HtmlTemplates {
         val modernizationImpactTotal = report.actions?.sumOf { it.impact?.modernizationDelta ?: 0 } ?: 0
         val usesKapt = report.checks?.usesKapt == true
         val configurationCacheEnabled = report.checks?.configurationCacheEnabled
-        val configDuration = report.diagnostics?.configuration?.durationMs ?: 0
-        val executionDuration = report.diagnostics?.execution?.durationMs ?: 0
-        val cacheHits = report.diagnostics?.buildCache?.hits ?: 0
-        val cacheMisses = report.diagnostics?.buildCache?.misses ?: 0
-        val incrementalCompile = report.diagnostics?.buildCache?.incrementalCompilationUsed ?: false
+        val configDuration = report.performance?.configurationMs ?: report.diagnostics?.configuration?.durationMs ?: 0
+        val executionDuration = report.performance?.executionMs ?: report.diagnostics?.execution?.durationMs ?: 0
+        val cacheHits = report.cache?.hits ?: report.diagnostics?.buildCache?.hits ?: 0
+        val cacheMisses = report.cache?.misses ?: report.diagnostics?.buildCache?.misses ?: 0
+        val incrementalCompile = report.performance?.incrementalCompilation
+            ?: report.diagnostics?.buildCache?.incrementalCompilationUsed
+            ?: false
         val configCacheRequested = report.diagnostics?.configurationCache?.requested ?: false
         val outdatedDeps = report.dependencies?.outdated?.size ?: 0
         val duplicateDeps = report.dependencies?.duplicates?.size ?: 0

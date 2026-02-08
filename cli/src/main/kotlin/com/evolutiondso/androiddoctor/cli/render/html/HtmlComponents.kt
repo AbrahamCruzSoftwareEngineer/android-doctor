@@ -132,9 +132,13 @@ object HtmlComponents {
     }
 
     fun diagnosticsSummaryCard(report: AndroidDoctorReport): String {
-        val configMs = report.diagnostics?.configuration?.durationMs?.let { "${it} ms" } ?: "Unknown"
-        val execMs = report.diagnostics?.execution?.durationMs?.let { "${it} ms" } ?: "Unknown"
-        val cache = report.diagnostics?.buildCache
+        val configMs = report.performance?.configurationMs?.let { "${it} ms" }
+            ?: report.diagnostics?.configuration?.durationMs?.let { "${it} ms" }
+            ?: "Unknown"
+        val execMs = report.performance?.executionMs?.let { "${it} ms" }
+            ?: report.diagnostics?.execution?.durationMs?.let { "${it} ms" }
+            ?: "Unknown"
+        val cache = report.cache ?: report.diagnostics?.buildCache
         val cacheSummary = cache?.let { "Hits ${it.hits ?: 0} / Misses ${it.misses ?: 0}" } ?: "Unknown"
         val configCache = report.diagnostics?.configurationCache
         val configCacheRequested = configCache?.requested?.let { if (it) "Requested" else "Not requested" } ?: "Unknown"
@@ -161,10 +165,10 @@ object HtmlComponents {
     }
 
     fun buildPerformanceCard(report: AndroidDoctorReport): String {
-        val configMs = report.diagnostics?.configuration?.durationMs
-        val execMs = report.diagnostics?.execution?.durationMs
-        val cache = report.diagnostics?.buildCache
-        val incremental = cache?.incrementalCompilationUsed
+        val configMs = report.performance?.configurationMs ?: report.diagnostics?.configuration?.durationMs
+        val execMs = report.performance?.executionMs ?: report.diagnostics?.execution?.durationMs
+        val cache = report.cache ?: report.diagnostics?.buildCache
+        val incremental = report.performance?.incrementalCompilation ?: cache?.incrementalCompilationUsed
         val tasks = report.diagnostics?.execution?.topLongestTasks.orEmpty()
         val hasTiming = configMs != null || execMs != null || tasks.isNotEmpty()
         val tasksRows = if (tasks.isEmpty()) {
@@ -352,12 +356,11 @@ object HtmlComponents {
     }
 
     fun moduleGraphCard(report: AndroidDoctorReport): String {
-        val modules = report.modules?.modules.orEmpty()
+        val modules = report.modulesDiagnostics?.modules.orEmpty()
+        val summaries = report.modules.orEmpty()
         val composeFlag = report.android?.composeEnabled
-        val rows = if (modules.isEmpty()) {
-            "<tr><td colspan=\"5\" class=\"muted\">No module data available.</td></tr>"
-        } else {
-            modules.joinToString("\n") { module ->
+        val rows = when {
+            modules.isNotEmpty() -> modules.joinToString("\n") { module ->
                 """
                 <tr>
                     <td>${module.path ?: "?"}</td>
@@ -369,6 +372,19 @@ object HtmlComponents {
                 </tr>
                 """.trimIndent()
             }
+            summaries.isNotEmpty() -> summaries.joinToString("\n") { module ->
+                """
+                <tr>
+                    <td>${module.name ?: "?"}</td>
+                    <td>${module.tasks ?: 0}</td>
+                    <td>${module.totalMs?.let { "${it} ms" } ?: "Unknown"}</td>
+                    <td>${formatBoolean(module.usesKapt)}</td>
+                    <td>${formatBoolean(composeFlag)}</td>
+                    <td>${formatBoolean(module.buildCacheEnabled)}</td>
+                </tr>
+                """.trimIndent()
+            }
+            else -> "<tr><td colspan=\"6\" class=\"muted\">No module data available.</td></tr>"
         }
 
         return """

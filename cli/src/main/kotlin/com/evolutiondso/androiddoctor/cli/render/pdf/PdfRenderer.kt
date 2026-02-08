@@ -47,9 +47,10 @@ object PdfRenderer {
                 writeLine("")
 
                 writeLine("Build Performance:")
-                writeLine("Config: ${report.diagnostics?.configuration?.durationMs?.let { "${it} ms" } ?: "Unknown"}")
-                writeLine("Execution: ${report.diagnostics?.execution?.durationMs?.let { "${it} ms" } ?: "Unknown"}")
-                writeLine("Build Cache: Hits ${report.diagnostics?.buildCache?.hits ?: 0} / Misses ${report.diagnostics?.buildCache?.misses ?: 0}")
+                writeLine("Config: ${report.performance?.configurationMs?.let { "${it} ms" } ?: report.diagnostics?.configuration?.durationMs?.let { "${it} ms" } ?: "Unknown"}")
+                writeLine("Execution: ${report.performance?.executionMs?.let { "${it} ms" } ?: report.diagnostics?.execution?.durationMs?.let { "${it} ms" } ?: "Unknown"}")
+                val cache = report.cache ?: report.diagnostics?.buildCache
+                writeLine("Build Cache: Hits ${cache?.hits ?: 0} / Misses ${cache?.misses ?: 0}")
                 report.diagnostics?.execution?.topLongestTasks.orEmpty().take(5).forEach { task ->
                     writeLine("  - ${task.path ?: "<task>"} (${task.durationMs ?: "?"} ms)")
                 }
@@ -78,9 +79,14 @@ object PdfRenderer {
                 writeLine("")
 
                 writeLine("Modules:")
-                writeLine("Count: ${report.modules?.count ?: report.modules?.modules?.size ?: 0}")
-                report.modules?.modules.orEmpty().take(5).forEach { module ->
+                val moduleDiagnostics = report.modulesDiagnostics
+                val moduleSummaries = report.modules
+                writeLine("Count: ${moduleDiagnostics?.count ?: moduleDiagnostics?.modules?.size ?: moduleSummaries?.size ?: 0}")
+                moduleDiagnostics?.modules.orEmpty().take(5).forEach { module ->
                     writeLine("  - ${module.path ?: "<module>"} (${module.taskCount ?: 0} tasks)")
+                }
+                moduleSummaries?.take(5)?.forEach { module ->
+                    writeLine("  - ${module.name ?: "<module>"} (${module.tasks ?: 0} tasks)")
                 }
                 writeLine("")
 

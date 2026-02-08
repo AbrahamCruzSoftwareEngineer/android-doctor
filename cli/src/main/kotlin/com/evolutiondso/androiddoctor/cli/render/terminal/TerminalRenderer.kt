@@ -31,10 +31,11 @@ object TerminalRenderer {
 
         println()
         println("Diagnostics:")
-        println("  Config Time : ${report.diagnostics?.configuration?.durationMs?.let { "${it} ms" } ?: "Unknown"}")
-        println("  Exec Time   : ${report.diagnostics?.execution?.durationMs?.let { "${it} ms" } ?: "Unknown"}")
-        println("  Cache Hits  : ${report.diagnostics?.buildCache?.hits ?: 0}")
-        println("  Cache Misses: ${report.diagnostics?.buildCache?.misses ?: 0}")
+        println("  Config Time : ${report.performance?.configurationMs?.let { "${it} ms" } ?: report.diagnostics?.configuration?.durationMs?.let { "${it} ms" } ?: "Unknown"}")
+        println("  Exec Time   : ${report.performance?.executionMs?.let { "${it} ms" } ?: report.diagnostics?.execution?.durationMs?.let { "${it} ms" } ?: "Unknown"}")
+        val cache = report.cache ?: report.diagnostics?.buildCache
+        println("  Cache Hits  : ${cache?.hits ?: 0}")
+        println("  Cache Misses: ${cache?.misses ?: 0}")
         println("  CI          : ${report.environment?.ci ?: "Unknown"}")
     }
 }
