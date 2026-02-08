@@ -46,6 +46,61 @@ object PdfRenderer {
                 writeLine("Modernization: ${report.scores?.modernization ?: "?"}")
                 writeLine("")
 
+                writeLine("Build Performance:")
+                writeLine("Config: ${report.diagnostics?.configuration?.durationMs?.let { "${it} ms" } ?: "Unknown"}")
+                writeLine("Execution: ${report.diagnostics?.execution?.durationMs?.let { "${it} ms" } ?: "Unknown"}")
+                writeLine("Build Cache: Hits ${report.diagnostics?.buildCache?.hits ?: 0} / Misses ${report.diagnostics?.buildCache?.misses ?: 0}")
+                report.diagnostics?.execution?.topLongestTasks.orEmpty().take(5).forEach { task ->
+                    writeLine("  - ${task.path ?: "<task>"} (${task.durationMs ?: "?"} ms)")
+                }
+                writeLine("")
+
+                writeLine("Configuration Cache:")
+                writeLine("Requested: ${report.diagnostics?.configurationCache?.requested ?: "Unknown"}")
+                writeLine("Stored: ${report.diagnostics?.configurationCache?.stored ?: "Unknown"}")
+                writeLine("Reused: ${report.diagnostics?.configurationCache?.reused ?: "Unknown"}")
+                writeLine("Incompatible Tasks: ${report.diagnostics?.configurationCache?.incompatibleTasks ?: "Unknown"}")
+                writeLine("")
+
+                writeLine("Toolchain:")
+                writeLine("Kotlin Compiler: ${report.tooling?.kotlinCompilerVersion ?: "Unknown"}")
+                writeLine("Kotlin JVM Target: ${report.toolchain?.kotlinJvmTarget ?: "Unknown"}")
+                writeLine("Java Toolchain: ${report.toolchain?.javaToolchainVersion ?: "Unknown"}")
+                writeLine("AGP: ${report.android?.agpVersion ?: "Unknown"}")
+                writeLine("compileSdk: ${report.android?.compileSdk ?: "Unknown"}")
+                writeLine("")
+
+                writeLine("Dependencies:")
+                writeLine("Outdated: ${report.dependencies?.outdated?.size ?: 0}")
+                writeLine("Duplicates: ${report.dependencies?.duplicates?.size ?: 0}")
+                writeLine("Unused: ${report.dependencies?.unused?.size ?: 0}")
+                writeLine("Heavy: ${report.dependencies?.heavy?.size ?: 0}")
+                writeLine("")
+
+                writeLine("Modules:")
+                writeLine("Count: ${report.modules?.count ?: report.modules?.modules?.size ?: 0}")
+                report.modules?.modules.orEmpty().take(5).forEach { module ->
+                    writeLine("  - ${module.path ?: "<module>"} (${module.taskCount ?: 0} tasks)")
+                }
+                writeLine("")
+
+                writeLine("Annotation Processing:")
+                writeLine("Processors: ${report.annotationProcessing?.processors?.size ?: 0}")
+                writeLine("Total Time: ${report.annotationProcessing?.totalProcessingMs?.let { "${it} ms" } ?: "Unknown"}")
+                writeLine("")
+
+                writeLine("Compose:")
+                writeLine("Enabled: ${report.android?.composeEnabled ?: "Unknown"}")
+                writeLine("Compiler: ${report.android?.composeCompilerVersion ?: "Unknown"}")
+                writeLine("")
+
+                writeLine("Environment:")
+                writeLine("OS: ${report.environment?.os ?: "Unknown"}")
+                writeLine("Arch: ${report.environment?.arch ?: "Unknown"}")
+                writeLine("CI: ${report.environment?.ci ?: "Unknown"}")
+                writeLine("RAM: ${report.environment?.availableRamMb?.let { "${it} MB" } ?: "Unknown"}")
+                writeLine("")
+
                 writeLine("Top Actions:")
                 report.actions.orEmpty().take(5).forEach { action ->
                     writeLine("- ${action.title}")

@@ -28,5 +28,13 @@ object TerminalRenderer {
         report.actions.orEmpty().forEachIndexed { i, a ->
             println("  ${i + 1}. ${a.title} [${a.priority}]")
         }
+
+        println()
+        println("Diagnostics:")
+        println("  Config Time : ${report.diagnostics?.configuration?.durationMs?.let { "${it} ms" } ?: "Unknown"}")
+        println("  Exec Time   : ${report.diagnostics?.execution?.durationMs?.let { "${it} ms" } ?: "Unknown"}")
+        println("  Cache Hits  : ${report.diagnostics?.buildCache?.hits ?: 0}")
+        println("  Cache Misses: ${report.diagnostics?.buildCache?.misses ?: 0}")
+        println("  CI          : ${report.environment?.ci ?: "Unknown"}")
     }
 }
