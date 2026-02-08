@@ -8,6 +8,7 @@ function isPremiumEnabled() {
 function setTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem("androiddoctor-theme", theme);
+    window.dispatchEvent(new CustomEvent("androiddoctor:themechange", { detail: { theme } }));
 }
 
 function applySavedTheme() {

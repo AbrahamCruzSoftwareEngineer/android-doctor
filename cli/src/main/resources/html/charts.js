@@ -39,7 +39,17 @@ function createCharts(data) {
         return;
     }
 
+    if (!window.__ANDROID_DOCTOR_CHARTS__) {
+        window.__ANDROID_DOCTOR_CHARTS__ = [];
+    }
+
+    window.__ANDROID_DOCTOR_CHARTS__.forEach(chart => chart.destroy());
+    window.__ANDROID_DOCTOR_CHARTS__ = [];
+
     const colors = themeColors();
+    Chart.defaults.color = colors.text;
+    Chart.defaults.borderColor = colors.border;
+
     const build = data.buildHealth ?? 0;
     const modern = data.modernization ?? 0;
     const composition = data.composition ?? 0;
@@ -57,7 +67,7 @@ function createCharts(data) {
 
         setNoData("trendChart", !trendHasData);
 
-        new Chart(trendCanvas, {
+        window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(trendCanvas, {
             type: "line",
             data: {
                 labels: ["v1", "v2", "v3", "Now"],
@@ -88,7 +98,7 @@ function createCharts(data) {
                     x: { grid: { color: colors.border }, ticks: { color: colors.text } }
                 }
             }
-        });
+        }));
     }
 
     const impactCanvas = document.getElementById("impactChart");
@@ -99,7 +109,7 @@ function createCharts(data) {
 
         setNoData("impactChart", !impactHasData);
 
-        new Chart(impactCanvas, {
+        window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(impactCanvas, {
             type: "bar",
             data: {
                 labels: ["Total Impact"],
@@ -126,7 +136,7 @@ function createCharts(data) {
                     x: { grid: { color: colors.border }, ticks: { color: colors.text } }
                 }
             }
-        });
+        }));
     }
 
     const radarCanvas = document.getElementById("radarChart");
@@ -136,7 +146,7 @@ function createCharts(data) {
 
         setNoData("radarChart", !radarHasData);
 
-        new Chart(radarCanvas, {
+        window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(radarCanvas, {
             type: "radar",
             data: {
                 labels: ["Build Health", "Modernization", "Composition"],
@@ -164,10 +174,16 @@ function createCharts(data) {
                     }
                 }
             }
-        });
+        }));
     }
 }
 
 if (window.__ANDROID_DOCTOR_DATA__) {
     createCharts(window.__ANDROID_DOCTOR_DATA__);
 }
+
+window.addEventListener("androiddoctor:themechange", () => {
+    if (window.__ANDROID_DOCTOR_DATA__) {
+        createCharts(window.__ANDROID_DOCTOR_DATA__);
+    }
+});
