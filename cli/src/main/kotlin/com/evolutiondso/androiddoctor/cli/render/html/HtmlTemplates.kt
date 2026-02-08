@@ -35,13 +35,21 @@ object HtmlTemplates {
         val outdatedDeps = report.dependencies?.outdated?.size ?: 0
         val duplicateDeps = report.dependencies?.duplicates?.size ?: 0
 
-        val configShare = when (configurationCacheEnabled) {
+        val annotationMs = report.annotationProcessing?.totalProcessingMs
+        val totalMs = listOfNotNull(configDuration.takeIf { it > 0 }, executionDuration.takeIf { it > 0 }, annotationMs)
+            .sum()
+
+        val fallbackConfig = when (configurationCacheEnabled) {
             true -> 18
             false -> 36
             null -> 28
         }
-        val annotationShare = if (usesKapt) 22 else 10
-        val executionShare = (100 - configShare - annotationShare).coerceAtLeast(10)
+        val fallbackAnnotation = if (usesKapt) 22 else 10
+        val fallbackExecution = (100 - fallbackConfig - fallbackAnnotation).coerceAtLeast(10)
+
+        val configShare = if (totalMs > 0) ((configDuration.toDouble() / totalMs) * 100).toInt() else fallbackConfig
+        val annotationShare = if (totalMs > 0) (((annotationMs ?: 0).toDouble() / totalMs) * 100).toInt() else fallbackAnnotation
+        val executionShare = if (totalMs > 0) (100 - configShare - annotationShare).coerceAtLeast(0) else fallbackExecution
 
         val actionsJson = report.actions?.joinToString(prefix = "[", postfix = "]") { action ->
             """{

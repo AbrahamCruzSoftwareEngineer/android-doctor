@@ -103,7 +103,7 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         val buildMetrics = metricsService.orNull?.snapshot()
         val dependencyDiagnostics = collectDependencyDiagnostics(project)
         val moduleDiagnostics = collectModuleDiagnostics(project, buildMetrics)
-        val annotationDiagnostics = collectAnnotationDiagnostics(project)
+        val annotationDiagnostics = collectAnnotationDiagnostics(project, buildMetrics)
         val environmentDiagnostics = collectEnvironmentDiagnostics()
         val configCacheRequested = readConfigurationCacheRequestedOrNull(project)
 
@@ -1191,7 +1191,10 @@ private fun collectModuleDiagnostics(project: Project, metrics: BuildMetricsSnap
     return ModuleDiagnostics(modules, deps)
 }
 
-private fun collectAnnotationDiagnostics(project: Project): AnnotationDiagnostics {
+private fun collectAnnotationDiagnostics(
+    project: Project,
+    buildMetrics: BuildMetricsSnapshot?
+): AnnotationDiagnostics {
     val processors = mutableSetOf<String>()
 
     project.rootProject.allprojects.forEach { module ->
@@ -1205,10 +1208,20 @@ private fun collectAnnotationDiagnostics(project: Project): AnnotationDiagnostic
             }
     }
 
+    val taskDurations = buildMetrics?.taskDurations.orEmpty()
+    val totalProcessingMs = taskDurations
+        .filter { it.path.contains("kapt", ignoreCase = true) || it.path.contains("ksp", ignoreCase = true) }
+        .sumOf { it.durationMs }
+        .takeIf { it > 0 }
+    val kaptStubMs = taskDurations
+        .filter { it.path.contains("kaptGenerateStubs", ignoreCase = true) }
+        .sumOf { it.durationMs }
+        .takeIf { it > 0 }
+
     return AnnotationDiagnostics(
         processors = processors.sorted(),
-        totalProcessingMs = null,
-        kaptStubGenerationMs = null
+        totalProcessingMs = totalProcessingMs,
+        kaptStubGenerationMs = kaptStubMs
     )
 }
 
