@@ -75,8 +75,12 @@ class AndroidDoctorPlugin : Plugin<Project> {
         try {
             val listenerClass = Class.forName("org.gradle.internal.operations.BuildOperationListener")
             val managerClass = Class.forName("org.gradle.internal.operations.BuildOperationListenerManager")
-            val services = target.gradle.services
-            val getService = services.javaClass.methods.firstOrNull { it.name == "get" && it.parameterTypes.size == 1 }
+            val services = target.gradle.javaClass.methods.firstOrNull { method ->
+                method.name == "getServices" && method.parameterCount == 0
+            }?.invoke(target.gradle) ?: return
+            val getService = services.javaClass.methods.firstOrNull { method ->
+                method.name == "get" && method.parameterTypes.size == 1
+            }
                 ?: return
             val manager = getService.invoke(services, managerClass) ?: return
             val proxy = java.lang.reflect.Proxy.newProxyInstance(
