@@ -33,8 +33,8 @@ class CommandRouter {
     /**
      * Main dispatch for rendering a loaded report based on capability set.
      */
-    fun handleReport(report: AndroidDoctorReport, capabilities: CapabilitySet) {
-        val args = parsedArgs()
+    fun handleReport(report: AndroidDoctorReport, capabilities: CapabilitySet, cliArgs: Array<String>) {
+        val args = parsedArgs(cliArgs)
 
         var exported = false
         var exportedFile: String? = null
@@ -88,13 +88,7 @@ class CommandRouter {
     /**
      * Parse flags from the real CLI invocation.
      */
-    private fun parsedArgs(): ParsedArgs {
-        val raw = ProcessHandle.current()
-            .info()
-            .commandLine()
-            .orElse("")
-            .split(" ")
-
+    private fun parsedArgs(raw: Array<String>): ParsedArgs {
         return ParsedArgs(
             exportHtml = raw.contains("--html"),
             exportMarkdown = raw.contains("--md"),
