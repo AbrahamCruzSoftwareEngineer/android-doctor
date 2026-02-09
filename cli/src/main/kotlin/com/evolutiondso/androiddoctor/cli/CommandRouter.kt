@@ -54,7 +54,7 @@ class CommandRouter {
         // -----------------------
         // MARKDOWN EXPORT
         // -----------------------
-        if (args.exportMarkdown && capabilities.canExportMarkdown()) {
+        if (args.exportMarkdown) {
             val outputPath = "build/androidDoctor/markdown/report.md"
             exportedFile = MarkdownRenderer.renderToFile(report, outputPath)
             println("📝 Markdown report exported → $exportedFile")
@@ -64,7 +64,7 @@ class CommandRouter {
         // -----------------------
         // PDF EXPORT
         // -----------------------
-        if (args.exportPdf && capabilities.canExportPdf()) {
+        if (args.exportPdf) {
             val outputPath = "build/androidDoctor/pdf/report.pdf"
             exportedFile = PdfRenderer.renderToFile(report, outputPath)
             println("📄 PDF report exported → $exportedFile")
