@@ -108,26 +108,6 @@ object PdfRenderer {
                 writeLine("RAM: ${report.environment?.availableRamMb?.let { "${it} MB" } ?: "Unknown"}")
                 writeLine("")
 
-                writeLine("Tests:")
-                writeLine("Total: ${report.tests?.total ?: 0}")
-                writeLine("Passed: ${report.tests?.passed ?: 0}")
-                writeLine("Failed: ${report.tests?.failed ?: 0}")
-                writeLine("Skipped: ${report.tests?.skipped ?: 0}")
-                writeLine("Duration: ${report.tests?.durationMs?.let { "${it} ms" } ?: "Unknown"}")
-                writeLine("UI Tests: ${report.tests?.uiTestDurationMs?.let { "${it} ms" } ?: "Unknown"}")
-                writeLine("")
-
-                writeLine("Architecture:")
-                val architecture = report.architecture
-                writeLine("MVC: ${architecture?.mvc ?: 0}%")
-                writeLine("MVP: ${architecture?.mvp ?: 0}%")
-                writeLine("MVVM: ${architecture?.mvvm ?: 0}%")
-                writeLine("MVI: ${architecture?.mvi ?: 0}%")
-                architecture?.violations.orEmpty().take(5).forEach { violation ->
-                    writeLine("  - ${violation.type}: ${violation.description}")
-                }
-                writeLine("")
-
                 writeLine("Top Actions:")
                 report.actions.orEmpty().take(5).forEach { action ->
                     writeLine("- ${action.title}")

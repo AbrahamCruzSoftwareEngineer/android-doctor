@@ -10,7 +10,6 @@ object HtmlSections {
             HtmlComponents.overviewCard(report, showGenerated = false),
             HtmlComponents.scoresCard(report),
             HtmlComponents.diagnosticsSummaryCard(report),
-            HtmlComponents.architectureCard(report),
             HtmlComponents.actionsCard(report),
             HtmlComponents.upgradeBanner()
         ).joinToString("\n")
@@ -22,8 +21,6 @@ object HtmlSections {
             HtmlComponents.chartsCard("Impact Summary", "impactChart"),
             HtmlComponents.chartsCard("Build Time Mix", "buildTimeChart"),
             HtmlComponents.chartsCard("Build Cache Activity", "buildCacheChart"),
-            HtmlComponents.chartsCard("Architecture Violations", "architectureViolationsChart"),
-            HtmlComponents.chartsCard("Test Results", "testResultsChart"),
             HtmlComponents.chartsCard("Score Radar", "radarChart", fullWidth = true)
         )
 
@@ -39,9 +36,7 @@ object HtmlSections {
             HtmlComponents.moduleGraphCard(report),
             HtmlComponents.annotationProcessingCard(report),
             HtmlComponents.composeCompilerCard(report),
-            HtmlComponents.environmentCard(report),
-            HtmlComponents.testsCard(report),
-            HtmlComponents.architectureCard(report)
+            HtmlComponents.environmentCard(report)
         ).joinToString("\n")
     }
 
