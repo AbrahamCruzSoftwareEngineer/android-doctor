@@ -75,6 +75,15 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         val mismatch =
             detectJvmTargetMismatch(kotlinJvmTarget, javaTargetCompatibility, agpCompileTarget)
 
+        // Compute scores
+        val scores = computeScores(
+            isAndroidProject = isAndroidProject,
+            usesKapt = usesKapt,
+            moduleCount = moduleCount,
+            configurationCacheEnabled = configurationCacheEnabled,
+            composeEnabled = composeEnabled
+        )
+
         // Known plugins
         val knownPluginIds = listOf(
             "com.android.application",
@@ -96,16 +105,6 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         val moduleDiagnostics = collectModuleDiagnostics(project, buildMetrics)
         val annotationDiagnostics = collectAnnotationDiagnostics(project, buildMetrics)
         val environmentDiagnostics = collectEnvironmentDiagnostics()
-        val architectureDiagnostics = ArchitectureAnalyzer().analyze(project)
-        val testsDiagnostics = collectTestsDiagnostics(buildMetrics)
-        val scores = computeScores(
-            isAndroidProject = isAndroidProject,
-            usesKapt = usesKapt,
-            moduleCount = moduleCount,
-            configurationCacheEnabled = configurationCacheEnabled,
-            composeEnabled = composeEnabled,
-            architectureDiagnostics = architectureDiagnostics
-        )
         val configCacheRequested = readConfigurationCacheRequestedOrNull(project)
 
         // Recommended actions
@@ -129,8 +128,7 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
             annotationDiagnostics = annotationDiagnostics,
             moduleDiagnostics = moduleDiagnostics,
             buildMetrics = buildMetrics,
-            environmentDiagnostics = environmentDiagnostics,
-            architectureDiagnostics = architectureDiagnostics
+            environmentDiagnostics = environmentDiagnostics
         )
 
         val actionsJson = actionsToJson(actions)
@@ -195,8 +193,6 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
   },
   "dependencies": ${dependencyDiagnostics.toJson()},
   "environment": ${environmentDiagnostics.toJson()},
-  "architecture": ${architectureDiagnostics.toJson()},
-  "tests": ${testsDiagnostics.toJson()},
   "toolchain": {
     "javaToolchainVersion": ${quote(javaToolchainVersion)},
     "jvmTarget": ${quote(javaTargetCompatibility)},
@@ -346,8 +342,7 @@ private fun buildTopActions(
     annotationDiagnostics: AnnotationDiagnostics,
     moduleDiagnostics: ModuleDiagnostics,
     buildMetrics: BuildMetricsSnapshot?,
-    environmentDiagnostics: EnvironmentDiagnostics,
-    architectureDiagnostics: ArchitectureDiagnostics
+    environmentDiagnostics: EnvironmentDiagnostics
 ): List<Action> {
 
     val actions = mutableListOf<Action>()
@@ -780,71 +775,6 @@ private fun buildTopActions(
         )
     }
 
-    if (architectureDiagnostics.violations.any { it.type == "MissingDomainLayer" }) {
-        actions += Action(
-            id = "INTRODUCE_DOMAIN_LAYER",
-            priority = 1,
-            severity = "HIGH",
-            effort = "M",
-            title = "Introduce Domain Layer",
-            why = "A domain layer is missing, which increases coupling between UI and data layers.",
-            how = "Add a domain module with use-cases and interfaces; migrate UI to depend on domain contracts.",
-            impact = Impact(6, 12)
-        )
-    }
-
-    if (architectureDiagnostics.violations.any { it.type == "GodActivity" }) {
-        actions += Action(
-            id = "BREAK_GOD_ACTIVITY",
-            priority = 1,
-            severity = "HIGH",
-            effort = "M",
-            title = "Break God Activity into ViewModel + UI state",
-            why = "Oversized Activities/Fragments reduce maintainability and slow down feature delivery.",
-            how = "Extract UI state to ViewModels and move business logic to use-cases or repositories.",
-            impact = Impact(8, 10)
-        )
-    }
-
-    if (architectureDiagnostics.violations.any { it.type == "RepositoryReturnsDTO" }) {
-        actions += Action(
-            id = "REMOVE_DTOS_FROM_UI",
-            priority = 2,
-            severity = "MEDIUM",
-            effort = "S",
-            title = "Remove DTOs from UI",
-            why = "Repositories are returning DTOs directly, leaking data-layer details to UI.",
-            how = "Map DTOs to domain models in repositories and expose only domain entities to UI.",
-            impact = Impact(4, 8)
-        )
-    }
-
-    if (architectureDiagnostics.violations.any { it.type == "ModuleCoupling" }) {
-        actions += Action(
-            id = "DECOUPLE_MODULES",
-            priority = 2,
-            severity = "MEDIUM",
-            effort = "M",
-            title = "Decouple modules via interfaces",
-            why = "Feature modules depend on :app, which limits reuse and increases build coupling.",
-            how = "Move shared contracts to a core/domain module and invert dependencies.",
-            impact = Impact(6, 6)
-        )
-    }
-
-    if (architectureDiagnostics.violations.any { it.type == "ArchitectureInconsistency" }) {
-        actions += Action(
-            id = "STANDARDIZE_ARCHITECTURE",
-            priority = 2,
-            severity = "MEDIUM",
-            effort = "M",
-            title = "Standardize architecture pattern (choose MVVM or MVI)",
-            why = "Multiple patterns are present, which increases maintenance overhead and onboarding cost.",
-            how = "Pick a primary pattern and migrate remaining modules incrementally.",
-            impact = Impact(4, 8)
-        )
-    }
-
     return actions
         .sortedWith(compareBy<Action> { it.priority }.thenBy { it.id })
         .take(5)
@@ -1197,33 +1127,6 @@ private data class EnvironmentDiagnostics(
     }
 }
 
-private data class TestsDiagnostics(
-    val total: Int,
-    val passed: Int,
-    val failed: Int,
-    val skipped: Int,
-    val durationMs: Long?,
-    val uiTestDurationMs: Long?,
-    val slowest: List<TestTiming>,
-    val failures: List<TestFailure>
-) {
-    fun toJson(): String {
-        return """
-        {
-          "total": $total,
-          "passed": $passed,
-          "failed": $failed,
-          "skipped": $skipped,
-          "durationMs": ${durationMs ?: "null"},
-          "uiTestDurationMs": ${uiTestDurationMs ?: "null"},
-          "slowest": ${slowestTestsToJson(slowest)},
-          "failures": ${testFailuresToJson(failures)}
-        }
-        """.trimIndent()
-    }
-}
-
-
 private fun collectDependencyDiagnostics(project: Project): DependencyDiagnostics {
     val duplicates = mutableListOf<DependencyDuplicate>()
     val outdated = mutableListOf<DependencyOutdated>()
@@ -1369,26 +1272,6 @@ private fun collectEnvironmentDiagnostics(): EnvironmentDiagnostics {
     )
 }
 
-private fun collectTestsDiagnostics(buildMetrics: BuildMetricsSnapshot?): TestsDiagnostics {
-    val tests = buildMetrics?.tests
-    val uiTestDuration = buildMetrics?.taskDurations.orEmpty()
-        .filter { it.path.contains("connectedDebugAndroidTest", ignoreCase = true) }
-        .sumOf { it.durationMs }
-        .takeIf { it > 0 }
-
-    return TestsDiagnostics(
-        total = tests?.total ?: 0,
-        passed = tests?.passed ?: 0,
-        failed = tests?.failed ?: 0,
-        skipped = tests?.skipped ?: 0,
-        durationMs = tests?.durationMs,
-        uiTestDurationMs = uiTestDuration,
-        slowest = tests?.slowest.orEmpty(),
-        failures = tests?.failures.orEmpty()
-    )
-}
-
-
 private fun duplicatesToJson(items: List<DependencyDuplicate>): String {
     if (items.isEmpty()) return "[]"
     val json = items.joinToString(",\n") { item ->
@@ -1488,35 +1371,6 @@ private fun moduleSummariesToJson(modules: ModuleDiagnostics): String {
           "totalMs": ${module.executionMs ?: "null"},
           "usesKapt": ${module.usesKapt},
           "buildCacheEnabled": ${module.buildCacheEnabled}
-        }
-        """.trimIndent()
-    }
-    return "[\n$json\n]"
-}
-
-private fun slowestTestsToJson(items: List<TestTiming>): String {
-    if (items.isEmpty()) return "[]"
-    val json = items.joinToString(",\n") { item ->
-        """
-        {
-          "className": "${esc(item.className)}",
-          "name": "${esc(item.name)}",
-          "durationMs": ${item.durationMs}
-        }
-        """.trimIndent()
-    }
-    return "[\n$json\n]"
-}
-
-private fun testFailuresToJson(items: List<TestFailure>): String {
-    if (items.isEmpty()) return "[]"
-    val json = items.joinToString(",\n") { item ->
-        """
-        {
-          "className": "${esc(item.className)}",
-          "name": "${esc(item.name)}",
-          "message": "${esc(item.message)}",
-          "stackTrace": "${esc(item.stackTrace)}"
         }
         """.trimIndent()
     }

@@ -36,12 +36,6 @@ object HtmlTemplates {
         val configCacheRequested = report.diagnostics?.configurationCache?.requested ?: false
         val outdatedDeps = report.dependencies?.outdated?.size ?: 0
         val duplicateDeps = report.dependencies?.duplicates?.size ?: 0
-        val architecture = report.architecture
-        val mvcScore = architecture?.mvc ?: 0
-        val mvpScore = architecture?.mvp ?: 0
-        val mvvmScore = architecture?.mvvm ?: 0
-        val mviScore = architecture?.mvi ?: 0
-        val architectureScore = (mvvmScore + mviScore).coerceAtMost(100)
 
         val annotationMs = report.annotationProcessing?.totalProcessingMs
         val totalMs = listOfNotNull(configDuration.takeIf { it > 0 }, executionDuration.takeIf { it > 0 }, annotationMs)
@@ -69,7 +63,7 @@ object HtmlTemplates {
             }"""
         } ?: "[]"
 
-        val architectureViolationsJson = architecture?.violations?.joinToString(prefix = "[", postfix = "]") { violation: com.evolutiondso.androiddoctor.cli.model.ArchitectureViolationInfo ->
+        val architectureViolationsJson = architecture?.violations?.joinToString(prefix = "[", postfix = "]") { violation ->
             """{
                 "type": "${escapeJs(violation.type)}",
                 "file": "${escapeJs(violation.file)}",
@@ -77,7 +71,7 @@ object HtmlTemplates {
             }"""
         } ?: "[]"
 
-        val architectureFixesJson = architecture?.recommendedFixes?.joinToString(prefix = "[", postfix = "]") { fix: com.evolutiondso.androiddoctor.cli.model.ArchitectureFixInfo ->
+        val architectureFixesJson = architecture?.recommendedFixes?.joinToString(prefix = "[", postfix = "]") { fix ->
             """{
                 "title": "${escapeJs(fix.title)}",
                 "description": "${escapeJs(fix.description)}"
@@ -85,14 +79,14 @@ object HtmlTemplates {
         } ?: "[]"
 
         val tests = report.tests
-        val testsJson = tests?.let { testInfo: com.evolutiondso.androiddoctor.cli.model.TestsInfo ->
+        val testsJson = tests?.let {
             """{
-                "total": ${testInfo.total ?: 0},
-                "passed": ${testInfo.passed ?: 0},
-                "failed": ${testInfo.failed ?: 0},
-                "skipped": ${testInfo.skipped ?: 0},
-                "durationMs": ${testInfo.durationMs ?: 0},
-                "uiTestDurationMs": ${testInfo.uiTestDurationMs ?: 0}
+                "total": ${it.total ?: 0},
+                "passed": ${it.passed ?: 0},
+                "failed": ${it.failed ?: 0},
+                "skipped": ${it.skipped ?: 0},
+                "durationMs": ${it.durationMs ?: 0},
+                "uiTestDurationMs": ${it.uiTestDurationMs ?: 0}
             }"""
         } ?: "null"
 
@@ -120,16 +114,6 @@ object HtmlTemplates {
                     execution: $executionShare,
                     annotation: $annotationShare
                 },
-                architecture: {
-                    mvc: $mvcScore,
-                    mvp: $mvpScore,
-                    mvvm: $mvvmScore,
-                    mvi: $mviScore,
-                    score: $architectureScore,
-                    violations: $architectureViolationsJson,
-                    recommendedFixes: $architectureFixesJson
-                },
-                tests: $testsJson,
                 actions: $actionsJson
             };
         """.trimIndent()

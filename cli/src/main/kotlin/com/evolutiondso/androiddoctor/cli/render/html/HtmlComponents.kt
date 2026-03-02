@@ -227,11 +227,9 @@ object HtmlComponents {
         val stored = formatBoolean(config?.stored)
         val reused = formatBoolean(config?.reused)
         val incompatible = config?.incompatibleTasks?.toString() ?: "Unknown"
-        val warning = config?.let {
-            if (it.requested == true && it.reused != true) {
-                "<p class=\"warning\">Configuration cache was requested but not reused.</p>"
-            } else ""
-        } ?: ""
+        val warning = if (config?.requested == true && config?.reused != true) {
+            "<p class=\"warning\">Configuration cache was requested but not reused.</p>"
+        } else ""
 
         return """
         <section class="card">
@@ -471,131 +469,6 @@ object HtmlComponents {
                 <div><strong>CI:</strong> ${formatBoolean(env?.ci)}</div>
                 <div><strong>RAM:</strong> ${env?.availableRamMb?.let { "${it} MB" } ?: "Unknown"}</div>
             </div>
-        </section>
-        """.trimIndent()
-    }
-
-    fun testsCard(report: AndroidDoctorReport): String {
-        val tests = report.tests
-        if (tests == null) {
-            return """
-            <section class="card">
-                <h2>Test Diagnostics</h2>
-                <p class="muted">No test diagnostics available.</p>
-            </section>
-            """.trimIndent()
-        }
-
-        val slowestRows = tests.slowest.orEmpty().joinToString("\n") { test ->
-            """
-            <tr>
-                <td>${test.className ?: "?"}</td>
-                <td>${test.name ?: "?"}</td>
-                <td>${test.durationMs?.let { "${it} ms" } ?: "Unknown"}</td>
-            </tr>
-            """.trimIndent()
-        }.ifBlank { "<tr><td colspan=\"3\" class=\"muted\">No slow tests recorded.</td></tr>" }
-
-        val failures = tests.failures.orEmpty().joinToString("\n") { failure ->
-            """
-            <div class="callout warning">
-                <strong>${failure.className ?: "Test"}#${failure.name ?: "?"}</strong>
-                <div class="muted">${failure.message ?: "Failure"}</div>
-            </div>
-            """.trimIndent()
-        }.ifBlank { "<p class=\"muted\">No test failures recorded.</p>" }
-
-        return """
-        <section class="card">
-            <h2>Test Diagnostics</h2>
-            <div class="info-grid">
-                <div><strong>Total:</strong> ${tests.total ?: 0}</div>
-                <div><strong>Passed:</strong> ${tests.passed ?: 0}</div>
-                <div><strong>Failed:</strong> ${tests.failed ?: 0}</div>
-                <div><strong>Skipped:</strong> ${tests.skipped ?: 0}</div>
-                <div><strong>Total Duration:</strong> ${tests.durationMs?.let { "${it} ms" } ?: "Unknown"}</div>
-                <div><strong>UI Test Duration:</strong> ${tests.uiTestDurationMs?.let { "${it} ms" } ?: "Unknown"}</div>
-            </div>
-            <h3>Slowest Tests</h3>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Class</th>
-                            <th>Test</th>
-                            <th>Duration</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        $slowestRows
-                    </tbody>
-                </table>
-            </div>
-            <h3>Failures</h3>
-            $failures
-        </section>
-        """.trimIndent()
-    }
-
-    fun architectureCard(report: AndroidDoctorReport): String {
-        val architecture = report.architecture
-        if (architecture == null) {
-            return """
-            <section class="card">
-                <h2>Architecture Diagnostics</h2>
-                <p class="muted">No architecture diagnostics available.</p>
-            </section>
-            """.trimIndent()
-        }
-
-        val distributionRows = if (architecture.mvc == null && architecture.mvp == null && architecture.mvvm == null && architecture.mvi == null) {
-            "<tr><td colspan=\"2\" class=\"muted\">No distribution data.</td></tr>"
-        } else {
-            """
-            <tr><td>MVC</td><td>${architecture.mvc ?: 0}%</td></tr>
-            <tr><td>MVP</td><td>${architecture.mvp ?: 0}%</td></tr>
-            <tr><td>MVVM</td><td>${architecture.mvvm ?: 0}%</td></tr>
-            <tr><td>MVI</td><td>${architecture.mvi ?: 0}%</td></tr>
-            """.trimIndent()
-        }
-
-        val violations = architecture.violations.orEmpty().joinToString("\n") { violation ->
-            """
-            <div class="callout warning">
-                <strong>${violation.type ?: "Violation"}:</strong> ${violation.description ?: "Details unavailable."}
-                <div class="muted">File: ${violation.file ?: "N/A"}</div>
-            </div>
-            """.trimIndent()
-        }.ifBlank { "<p class=\"muted\">No architecture violations detected.</p>" }
-
-        val recommendations = architecture.recommendedFixes.orEmpty().joinToString("\n") { rec ->
-            """
-            <div class="callout info">
-                <strong>${rec.title ?: "Recommendation"}:</strong> ${rec.description ?: ""}
-            </div>
-            """.trimIndent()
-        }.ifBlank { "<p class=\"muted\">No architecture recommendations available.</p>" }
-
-        return """
-        <section class="card">
-            <h2>Architecture Diagnostics</h2>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Pattern</th>
-                            <th>Detected</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        $distributionRows
-                    </tbody>
-                </table>
-            </div>
-            <h3>Violations</h3>
-            $violations
-            <h3>Recommended Fixes</h3>
-            $recommendations
         </section>
         """.trimIndent()
     }

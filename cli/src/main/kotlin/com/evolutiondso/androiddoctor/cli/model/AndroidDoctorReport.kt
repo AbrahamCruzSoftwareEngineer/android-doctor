@@ -23,8 +23,6 @@ data class AndroidDoctorReport(
     val compose: ComposeInfo? = null,
     val annotationProcessing: AnnotationProcessingInfo? = null,
     val environment: EnvironmentInfo? = null,
-    val architecture: ArchitectureDiagnosticsInfo? = null,
-    val tests: TestsInfo? = null,
     val actions: List<ActionInfo>? = null,
     val plugins: PluginsInfo? = null,
     val notes: List<String>? = null
@@ -221,29 +219,6 @@ data class ToolchainInfo(
 )
 
 @Serializable
-data class ArchitectureDiagnosticsInfo(
-    val mvc: Int? = null,
-    val mvp: Int? = null,
-    val mvvm: Int? = null,
-    val mvi: Int? = null,
-    val violations: List<ArchitectureViolationInfo>? = null,
-    val recommendedFixes: List<ArchitectureFixInfo>? = null
-)
-
-@Serializable
-data class ArchitectureViolationInfo(
-    val type: String? = null,
-    val file: String? = null,
-    val description: String? = null
-)
-
-@Serializable
-data class ArchitectureFixInfo(
-    val title: String? = null,
-    val description: String? = null
-)
-
-@Serializable
 data class ModulesInfo(
     val count: Int? = null,
     val modules: List<ModuleInfo>? = null,
@@ -278,31 +253,4 @@ data class EnvironmentInfo(
     val arch: String? = null,
     val ci: Boolean? = null,
     val availableRamMb: Long? = null
-)
-
-@Serializable
-data class TestsInfo(
-    val total: Int? = null,
-    val passed: Int? = null,
-    val failed: Int? = null,
-    val skipped: Int? = null,
-    val durationMs: Long? = null,
-    val uiTestDurationMs: Long? = null,
-    val slowest: List<TestTimingInfo>? = null,
-    val failures: List<TestFailureInfo>? = null
-)
-
-@Serializable
-data class TestTimingInfo(
-    val className: String? = null,
-    val name: String? = null,
-    val durationMs: Long? = null
-)
-
-@Serializable
-data class TestFailureInfo(
-    val className: String? = null,
-    val name: String? = null,
-    val message: String? = null,
-    val stackTrace: String? = null
 )
