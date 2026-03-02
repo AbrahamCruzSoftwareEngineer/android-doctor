@@ -257,7 +257,8 @@ private fun computeScores(
     usesKapt: Boolean,
     moduleCount: Int,
     configurationCacheEnabled: Boolean?,
-    composeEnabled: Boolean?
+    composeEnabled: Boolean?,
+    architectureDiagnostics: ArchitectureDiagnostics
 ): Scores {
     var build = 100
 
@@ -287,6 +288,16 @@ private fun computeScores(
             false -> modern -= 10
             null -> modern -= 3
         }
+    }
+
+    if (architectureDiagnostics.mvvm > 0) {
+        modern += 20
+    }
+    if (architectureDiagnostics.mvi > 0) {
+        modern += 15
+    }
+    if (architectureDiagnostics.violations.any { it.type == "MissingDomainLayer" }) {
+        modern -= 20
     }
 
     modern = modern.coerceIn(0, 100)
