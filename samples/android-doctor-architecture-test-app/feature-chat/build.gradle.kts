@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.example.architecturesample.feature.chat"
-    compileSdk = 33
+    compileSdk = 34
 
     defaultConfig {
         minSdk = 24
@@ -13,6 +13,7 @@ android {
 }
 
 dependencies {
-    implementation("androidx.appcompat:appcompat:1.2.0")
-    implementation(project(":app"))
+    implementation("androidx.core:core-ktx:1.6.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.2.0")
+    implementation(project(":core-data"))
 }

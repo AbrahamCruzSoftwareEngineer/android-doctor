@@ -1,17 +1,18 @@
 plugins {
     id("com.android.application")
     kotlin("android")
+    kotlin("kapt")
     id("com.evolutiondso.androiddoctor")
 }
 
 android {
     namespace = "com.example.architecturesample"
-    compileSdk = 33
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.example.architecturesample"
         minSdk = 24
-        targetSdk = 33
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
     }
@@ -21,16 +22,27 @@ android {
             isMinifyEnabled = false
         }
     }
+
+    buildFeatures {
+        compose = true
+    }
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.8"
+    }
 }
 
 dependencies {
-    implementation("androidx.appcompat:appcompat:1.2.0")
-    implementation("androidx.core:core-ktx:1.3.2")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.2.0")
-    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.2.0")
-    implementation("com.google.android.material:material:1.2.1")
-    implementation("com.squareup.retrofit2:retrofit:2.7.2")
-    implementation("com.squareup.okhttp3:okhttp:4.4.0")
+    implementation("androidx.core:core-ktx:1.7.0")
+    implementation("androidx.appcompat:appcompat:1.4.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.4.0")
+    implementation("androidx.activity:activity-compose:1.8.2")
+    implementation("androidx.compose.ui:ui:1.5.4")
+    implementation("com.google.android.material:material:1.4.0")
 
     implementation(project(":feature-chat"))
+    implementation(project(":feature-payments"))
+    implementation(project(":legacy-mvc"))
+    implementation(project(":core-data"))
+
+    kapt("com.google.dagger:dagger-compiler:2.44")
 }

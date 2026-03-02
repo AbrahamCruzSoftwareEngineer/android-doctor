@@ -58,16 +58,16 @@ tasks.register("doctorTest") {
 
         banner("ANDROIDDOCTOR COMPLETE E2E TEST")
 
-        val reportJson = "samples/sample-app/build/androidDoctor/report.json"
+        val reportJson = "samples/android-doctor-architecture-test-app/build/androidDoctor/report.json"
 
         // Step 1 — Basic build success (already handled by dependsOn)
         success("Plugin + CLI built successfully")
 
         // Step 2 — Generate report.json
         timed("androidDoctorCollect") {
-            step("Running androidDoctorCollect in samples/sample-app")
+            step("Running androidDoctorCollect in samples/android-doctor-architecture-test-app")
             exec {
-                workingDir = file("samples/sample-app")
+                workingDir = file("samples/android-doctor-architecture-test-app")
                 commandLine("../../gradlew", "androidDoctorCollect")
                 isIgnoreExitValue = true
             }.exitValue
