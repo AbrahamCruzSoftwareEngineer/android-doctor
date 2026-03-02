@@ -34,7 +34,7 @@ object AndroidDoctorCli {
                 val plan = detectPlan(report)
                 val capabilities = AndroidDoctorCapabilities.forPlan(plan)
 
-                router.handleReport(report, capabilities)
+                router.handleReport(report, capabilities, args)
             }
 
             else -> {

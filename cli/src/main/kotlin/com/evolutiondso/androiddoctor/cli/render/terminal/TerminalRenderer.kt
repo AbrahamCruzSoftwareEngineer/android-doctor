@@ -28,5 +28,15 @@ object TerminalRenderer {
         report.actions.orEmpty().forEachIndexed { i, a ->
             println("  ${i + 1}. ${a.title} [${a.priority}]")
         }
+
+        println()
+        println("Diagnostics:")
+        println("  Config Time : ${report.performance?.configurationMs?.let { "${it} ms" } ?: report.diagnostics?.configuration?.durationMs?.let { "${it} ms" } ?: "Unknown"}")
+        println("  Exec Time   : ${report.performance?.executionMs?.let { "${it} ms" } ?: report.diagnostics?.execution?.durationMs?.let { "${it} ms" } ?: "Unknown"}")
+        val cacheHits = report.cache?.hits ?: report.diagnostics?.buildCache?.hits
+        val cacheMisses = report.cache?.misses ?: report.diagnostics?.buildCache?.misses
+        println("  Cache Hits  : ${cacheHits ?: 0}")
+        println("  Cache Misses: ${cacheMisses ?: 0}")
+        println("  CI          : ${report.environment?.ci ?: "Unknown"}")
     }
 }

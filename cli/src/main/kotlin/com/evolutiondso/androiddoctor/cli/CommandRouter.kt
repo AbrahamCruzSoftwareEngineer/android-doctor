@@ -33,8 +33,8 @@ class CommandRouter {
     /**
      * Main dispatch for rendering a loaded report based on capability set.
      */
-    fun handleReport(report: AndroidDoctorReport, capabilities: CapabilitySet) {
-        val args = parsedArgs()
+    fun handleReport(report: AndroidDoctorReport, capabilities: CapabilitySet, cliArgs: Array<String>) {
+        val args = parsedArgs(cliArgs)
 
         var exported = false
         var exportedFile: String? = null
@@ -54,7 +54,7 @@ class CommandRouter {
         // -----------------------
         // MARKDOWN EXPORT
         // -----------------------
-        if (args.exportMarkdown && capabilities.canExportMarkdown()) {
+        if (args.exportMarkdown) {
             val outputPath = "build/androidDoctor/markdown/report.md"
             exportedFile = MarkdownRenderer.renderToFile(report, outputPath)
             println("📝 Markdown report exported → $exportedFile")
@@ -64,7 +64,7 @@ class CommandRouter {
         // -----------------------
         // PDF EXPORT
         // -----------------------
-        if (args.exportPdf && capabilities.canExportPdf()) {
+        if (args.exportPdf) {
             val outputPath = "build/androidDoctor/pdf/report.pdf"
             exportedFile = PdfRenderer.renderToFile(report, outputPath)
             println("📄 PDF report exported → $exportedFile")
@@ -88,13 +88,7 @@ class CommandRouter {
     /**
      * Parse flags from the real CLI invocation.
      */
-    private fun parsedArgs(): ParsedArgs {
-        val raw = ProcessHandle.current()
-            .info()
-            .commandLine()
-            .orElse("")
-            .split(" ")
-
+    private fun parsedArgs(raw: Array<String>): ParsedArgs {
         return ParsedArgs(
             exportHtml = raw.contains("--html"),
             exportMarkdown = raw.contains("--md"),

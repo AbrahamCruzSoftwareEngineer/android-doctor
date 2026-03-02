@@ -49,15 +49,18 @@ function createCharts(data) {
     const colors = themeColors();
     Chart.defaults.color = colors.text;
     Chart.defaults.borderColor = colors.border;
+    Chart.defaults.font.family = "\"Inter\", \"Roboto\", system-ui, sans-serif";
 
     const build = data.buildHealth ?? 0;
     const modern = data.modernization ?? 0;
     const composition = data.composition ?? 0;
+    const architectureScore = data.architecture?.score ?? 0;
 
     const buildTrend = generateTrend(build);
     const modernTrend = generateTrend(modern);
 
     const impactTotals = data.impactTotals || { buildHealth: 0, modernization: 0 };
+    const diagnostics = data.diagnostics || {};
 
     const trendCanvas = document.getElementById("trendChart");
     if (trendCanvas) {
@@ -90,8 +93,7 @@ function createCharts(data) {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
-                aspectRatio: 2.2,
+                maintainAspectRatio: false,
                 animation: { duration: 0 },
                 transitions: {
                     active: { animation: { duration: 0 } },
@@ -135,8 +137,7 @@ function createCharts(data) {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
-                aspectRatio: 2.4,
+                maintainAspectRatio: false,
                 animation: { duration: 0 },
                 transitions: {
                     active: { animation: { duration: 0 } },
@@ -153,17 +154,197 @@ function createCharts(data) {
         }));
     }
 
+    const buildTimeCanvas = document.getElementById("buildTimeChart");
+    if (buildTimeCanvas) {
+        const buildTime = data.buildTimeBreakdown || {};
+        const configShare = buildTime.configuration ?? 0;
+        const executionShare = buildTime.execution ?? 0;
+        const annotationShare = buildTime.annotation ?? 0;
+        const buildTimeHasData = hasRealData([configShare, executionShare, annotationShare]);
+
+        setNoData("buildTimeChart", !buildTimeHasData);
+
+        window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(buildTimeCanvas, {
+            type: "doughnut",
+            data: {
+                labels: ["Configuration", "Execution", "Annotation Processing"],
+                datasets: [
+                    {
+                        data: buildTimeHasData
+                            ? [configShare, executionShare, annotationShare]
+                            : [40, 45, 15],
+                        backgroundColor: [colors.primary, colors.accent, colors.primarySoft],
+                        borderColor: colors.border,
+                        borderWidth: 1
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
+                transitions: {
+                    active: { animation: { duration: 0 } },
+                    resize: { animation: { duration: 0 } }
+                },
+                plugins: {
+                    legend: { position: "bottom", labels: { color: colors.text } },
+                    tooltip: {
+                        callbacks: {
+                            label: context => `${context.label}: ${context.parsed}%`
+                        }
+                    }
+                },
+                cutout: "58%"
+            }
+        }));
+    }
+
+    const buildCacheCanvas = document.getElementById("buildCacheChart");
+    if (buildCacheCanvas) {
+        const cacheHits = diagnostics.cacheHits ?? 0;
+        const cacheMisses = diagnostics.cacheMisses ?? 0;
+        const cacheHasData = hasRealData([cacheHits, cacheMisses]);
+
+        setNoData("buildCacheChart", !cacheHasData);
+
+        window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(buildCacheCanvas, {
+            type: "bar",
+            data: {
+                labels: ["Cache"],
+                datasets: [
+                    {
+                        label: "Hits",
+                        data: [cacheHits],
+                        backgroundColor: colors.primary
+                    },
+                    {
+                        label: "Misses",
+                        data: [cacheMisses],
+                        backgroundColor: colors.accent
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
+                transitions: {
+                    active: { animation: { duration: 0 } },
+                    resize: { animation: { duration: 0 } }
+                },
+                plugins: {
+                    legend: { labels: { color: colors.text } }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: colors.border }, ticks: { color: colors.text } },
+                    x: { grid: { color: colors.border }, ticks: { color: colors.text } }
+                }
+            }
+        }));
+    }
+
+    const violationsCanvas = document.getElementById("architectureViolationsChart");
+    if (violationsCanvas) {
+        const violations = data.architecture?.violations ?? [];
+        const counts = {
+            GodActivity: 0,
+            MissingDomainLayer: 0,
+            ArchitectureInconsistency: 0
+        };
+        violations.forEach((violation) => {
+            if (counts[violation.type] !== undefined) {
+                counts[violation.type] += 1;
+            }
+        });
+        const values = [counts.GodActivity, counts.MissingDomainLayer, counts.ArchitectureInconsistency];
+        const hasViolationData = hasRealData(values);
+
+        setNoData("architectureViolationsChart", !hasViolationData);
+
+        window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(violationsCanvas, {
+            type: "bar",
+            data: {
+                labels: ["God Activity", "Missing Domain", "Architecture Mix"],
+                datasets: [
+                    {
+                        label: "Violations",
+                        data: values,
+                        backgroundColor: colors.accent
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
+                transitions: {
+                    active: { animation: { duration: 0 } },
+                    resize: { animation: { duration: 0 } }
+                },
+                plugins: {
+                    legend: { labels: { color: colors.text } }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: colors.border }, ticks: { color: colors.text, precision: 0 } },
+                    x: { grid: { color: colors.border }, ticks: { color: colors.text } }
+                }
+            }
+        }));
+    }
+
+    const testResultsCanvas = document.getElementById("testResultsChart");
+    if (testResultsCanvas) {
+        const tests = data.tests ?? {};
+        const passed = tests.passed ?? 0;
+        const failed = tests.failed ?? 0;
+        const skipped = tests.skipped ?? 0;
+        const hasTestData = hasRealData([passed, failed, skipped]);
+
+        setNoData("testResultsChart", !hasTestData);
+
+        window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(testResultsCanvas, {
+            type: "bar",
+            data: {
+                labels: ["Passed", "Failed", "Skipped"],
+                datasets: [
+                    {
+                        label: "Tests",
+                        data: [passed, failed, skipped],
+                        backgroundColor: [colors.primary, colors.accent, colors.border]
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
+                transitions: {
+                    active: { animation: { duration: 0 } },
+                    resize: { animation: { duration: 0 } }
+                },
+                plugins: {
+                    legend: { labels: { color: colors.text } }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: colors.border }, ticks: { color: colors.text, precision: 0 } },
+                    x: { grid: { color: colors.border }, ticks: { color: colors.text } }
+                }
+            }
+        }));
+    }
+
     const radarCanvas = document.getElementById("radarChart");
     if (radarCanvas) {
-        const radarHasData = hasRealData([build, modern, composition]);
-        const radarValues = radarHasData ? [build, modern, composition] : [58, 46, 32];
+        const radarHasData = hasRealData([build, modern, composition, architectureScore]);
+        const radarValues = radarHasData ? [build, modern, composition, architectureScore] : [58, 46, 32, 40];
 
         setNoData("radarChart", !radarHasData);
 
         window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(radarCanvas, {
             type: "radar",
             data: {
-                labels: ["Build Health", "Modernization", "Composition"],
+                labels: ["Build Health", "Modernization", "Composition", "Architecture"],
                 datasets: [
                     {
                         label: "Score Breakdown",
@@ -179,8 +360,7 @@ function createCharts(data) {
             },
             options: {
                 responsive: true,
-                maintainAspectRatio: true,
-                aspectRatio: 1.2,
+                maintainAspectRatio: false,
                 animation: { duration: 0 },
                 transitions: {
                     active: { animation: { duration: 0 } },
