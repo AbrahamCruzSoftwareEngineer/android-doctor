@@ -63,32 +63,32 @@ object HtmlTemplates {
             }"""
         } ?: "[]"
 
-        val architectureViolationsJson = architecture?.violations?.joinToString(prefix = "[", postfix = "]") { violation ->
+        val testsJson = report.tests?.let { tests ->
             """{
-                "type": "${escapeJs(violation.type)}",
-                "file": "${escapeJs(violation.file)}",
-                "description": "${escapeJs(violation.description)}"
+                "moduleCount": ${tests.moduleCount ?: 0},
+                "modulesWithUnitTests": ${tests.modulesWithUnitTests ?: 0},
+                "modulesWithUiTests": ${tests.modulesWithUiTests ?: 0},
+                "unitTestFiles": ${tests.unitTestFiles ?: 0},
+                "uiTestFiles": ${tests.uiTestFiles ?: 0},
+                "executedUnitTestTasks": ${tests.executedUnitTestTasks ?: 0},
+                "executedUiTestTasks": ${tests.executedUiTestTasks ?: 0},
+                "unitCoverageScore": ${tests.unitCoverageScore ?: report.scores?.unitTestCoverage ?: 0},
+                "uiCoverageScore": ${tests.uiCoverageScore ?: report.scores?.uiTestCoverage ?: 0},
+                "overallScore": ${tests.overallScore ?: report.scores?.testingOverall ?: 0}
             }"""
-        } ?: "[]"
+        } ?: """{
+                "moduleCount": 0,
+                "modulesWithUnitTests": 0,
+                "modulesWithUiTests": 0,
+                "unitTestFiles": 0,
+                "uiTestFiles": 0,
+                "executedUnitTestTasks": 0,
+                "executedUiTestTasks": 0,
+                "unitCoverageScore": ${report.scores?.unitTestCoverage ?: 0},
+                "uiCoverageScore": ${report.scores?.uiTestCoverage ?: 0},
+                "overallScore": ${report.scores?.testingOverall ?: 0}
+            }"""
 
-        val architectureFixesJson = architecture?.recommendedFixes?.joinToString(prefix = "[", postfix = "]") { fix ->
-            """{
-                "title": "${escapeJs(fix.title)}",
-                "description": "${escapeJs(fix.description)}"
-            }"""
-        } ?: "[]"
-
-        val tests = report.tests
-        val testsJson = tests?.let {
-            """{
-                "total": ${it.total ?: 0},
-                "passed": ${it.passed ?: 0},
-                "failed": ${it.failed ?: 0},
-                "skipped": ${it.skipped ?: 0},
-                "durationMs": ${it.durationMs ?: 0},
-                "uiTestDurationMs": ${it.uiTestDurationMs ?: 0}
-            }"""
-        } ?: "null"
 
         val dataJson = """
             window.__ANDROID_DOCTOR_DATA__ = {
@@ -114,6 +114,7 @@ object HtmlTemplates {
                     execution: $executionShare,
                     annotation: $annotationShare
                 },
+                tests: $testsJson,
                 actions: $actionsJson
             };
         """.trimIndent()

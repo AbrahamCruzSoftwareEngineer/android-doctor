@@ -204,99 +204,7 @@ function createCharts(data) {
     if (buildCacheCanvas) {
         const cacheHits = diagnostics.cacheHits ?? 0;
         const cacheMisses = diagnostics.cacheMisses ?? 0;
-        const cacheHasData = hasRealData([cacheHits, cacheMisses]);
-
-        setNoData("buildCacheChart", !cacheHasData);
-
-        window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(buildCacheCanvas, {
-            type: "bar",
-            data: {
-                labels: ["Cache"],
-                datasets: [
-                    {
-                        label: "Hits",
-                        data: [cacheHits],
-                        backgroundColor: colors.primary
-                    },
-                    {
-                        label: "Misses",
-                        data: [cacheMisses],
-                        backgroundColor: colors.accent
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: { duration: 0 },
-                transitions: {
-                    active: { animation: { duration: 0 } },
-                    resize: { animation: { duration: 0 } }
-                },
-                plugins: {
-                    legend: { labels: { color: colors.text } }
-                },
-                scales: {
-                    y: { beginAtZero: true, grid: { color: colors.border }, ticks: { color: colors.text } },
-                    x: { grid: { color: colors.border }, ticks: { color: colors.text } }
-                }
-            }
-        }));
-    }
-
-    const buildTimeCanvas = document.getElementById("buildTimeChart");
-    if (buildTimeCanvas) {
-        const buildTime = data.buildTimeBreakdown || {};
-        const configShare = buildTime.configuration ?? 0;
-        const executionShare = buildTime.execution ?? 0;
-        const annotationShare = buildTime.annotation ?? 0;
-        const buildTimeHasData = hasRealData([configShare, executionShare, annotationShare]);
-
-        setNoData("buildTimeChart", !buildTimeHasData);
-
-        window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(buildTimeCanvas, {
-            type: "doughnut",
-            data: {
-                labels: ["Configuration", "Execution", "Annotation Processing"],
-                datasets: [
-                    {
-                        data: buildTimeHasData
-                            ? [configShare, executionShare, annotationShare]
-                            : [40, 45, 15],
-                        backgroundColor: [colors.primary, colors.accent, colors.primarySoft],
-                        borderColor: colors.border,
-                        borderWidth: 1
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: { duration: 0 },
-                transitions: {
-                    active: { animation: { duration: 0 } },
-                    resize: { animation: { duration: 0 } }
-                },
-                plugins: {
-                    legend: { position: "bottom", labels: { color: colors.text } },
-                    tooltip: {
-                        callbacks: {
-                            label: context => `${context.label}: ${context.parsed}%`
-                        }
-                    }
-                },
-                cutout: "58%"
-            }
-        }));
-    }
-
-    const buildCacheCanvas = document.getElementById("buildCacheChart");
-    if (buildCacheCanvas) {
-        const cacheHits = diagnostics.cacheHits ?? 0;
-        const cacheMisses = diagnostics.cacheMisses ?? 0;
-        const cacheHasData = hasRealData([cacheHits, cacheMisses]);
-
-        setNoData("buildCacheChart", !cacheHasData);
+        setNoData("buildCacheChart", false);
 
         window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(buildCacheCanvas, {
             type: "bar",
@@ -386,21 +294,21 @@ function createCharts(data) {
     const testResultsCanvas = document.getElementById("testResultsChart");
     if (testResultsCanvas) {
         const tests = data.tests ?? {};
-        const passed = tests.passed ?? 0;
-        const failed = tests.failed ?? 0;
-        const skipped = tests.skipped ?? 0;
-        const hasTestData = hasRealData([passed, failed, skipped]);
+        const unitCoverage = tests.unitCoverageScore ?? 0;
+        const uiCoverage = tests.uiCoverageScore ?? 0;
+        const overallCoverage = tests.overallScore ?? 0;
+        const hasTestData = hasRealData([unitCoverage, uiCoverage, overallCoverage]);
 
-        setNoData("testResultsChart", !hasTestData);
+        setNoData("testResultsChart", false);
 
         window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(testResultsCanvas, {
             type: "bar",
             data: {
-                labels: ["Passed", "Failed", "Skipped"],
+                labels: ["Unit Coverage", "UI Coverage", "Overall"],
                 datasets: [
                     {
-                        label: "Tests",
-                        data: [passed, failed, skipped],
+                        label: "Test Score",
+                        data: [unitCoverage, uiCoverage, overallCoverage],
                         backgroundColor: [colors.primary, colors.accent, colors.border]
                     }
                 ]
@@ -417,7 +325,7 @@ function createCharts(data) {
                     legend: { labels: { color: colors.text } }
                 },
                 scales: {
-                    y: { beginAtZero: true, grid: { color: colors.border }, ticks: { color: colors.text, precision: 0 } },
+                    y: { beginAtZero: true, max: 100, grid: { color: colors.border }, ticks: { color: colors.text, precision: 0 } },
                     x: { grid: { color: colors.border }, ticks: { color: colors.text } }
                 }
             }

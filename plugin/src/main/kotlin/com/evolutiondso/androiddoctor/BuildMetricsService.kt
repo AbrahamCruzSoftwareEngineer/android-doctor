@@ -13,6 +13,19 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicLong
 
+enum class CacheOutcome {
+    HIT, MISS, SKIPPED, NONE
+}
+
+fun classifyCacheOutcome(skipped: Boolean, didWork: Boolean, skipMessage: String?): CacheOutcome {
+    return when {
+        skipped && skipMessage.orEmpty().uppercase().contains("FROM-CACHE") -> CacheOutcome.HIT
+        skipped -> CacheOutcome.SKIPPED
+        didWork -> CacheOutcome.MISS
+        else -> CacheOutcome.NONE
+    }
+}
+
 abstract class BuildMetricsService : BuildService<BuildMetricsService.Params>,
     TaskExecutionListener,
     BuildListener {
@@ -68,15 +81,11 @@ abstract class BuildMetricsService : BuildService<BuildMetricsService.Params>,
             )
         )
 
-        val skipMessage = state.skipMessage.orEmpty().uppercase()
-        if (state.skipped) {
-            if (skipMessage.contains("FROM-CACHE")) {
-                cacheHits.incrementAndGet()
-            } else {
-                cacheSkipped.incrementAndGet()
-            }
-        } else if (state.didWork) {
-            cacheMisses.incrementAndGet()
+        when (classifyCacheOutcome(state.skipped, state.didWork, state.skipMessage)) {
+            CacheOutcome.HIT -> cacheHits.incrementAndGet()
+            CacheOutcome.MISS -> cacheMisses.incrementAndGet()
+            CacheOutcome.SKIPPED -> cacheSkipped.incrementAndGet()
+            CacheOutcome.NONE -> Unit
         }
 
         if (isIncrementalCompilation(task)) {
