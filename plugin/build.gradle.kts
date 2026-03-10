@@ -4,6 +4,7 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 plugins {
     kotlin("jvm")
     `java-gradle-plugin`
+    jacoco
 }
 
 java {
@@ -68,4 +69,27 @@ gradlePlugin {
             description = "Advisory tool for Android build health & Compose modernization."
         }
     }
+}
+
+
+tasks.jacocoTestCoverageVerification {
+    description = "Verifies minimum unit test coverage for core classification logic."
+    group = "verification"
+    dependsOn(tasks.test)
+
+    violationRules {
+        rule {
+            element = "CLASS"
+            includes = listOf("com.evolutiondso.androiddoctor.BuildMetricsServiceKt")
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = "0.95".toBigDecimal()
+            }
+        }
+    }
+}
+
+tasks.check {
+    dependsOn(tasks.jacocoTestCoverageVerification)
 }

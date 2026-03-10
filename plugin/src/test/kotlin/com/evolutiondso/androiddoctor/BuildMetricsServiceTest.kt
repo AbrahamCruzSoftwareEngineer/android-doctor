@@ -6,46 +6,26 @@ import org.junit.jupiter.api.Test
 class BuildMetricsServiceTest {
 
     @Test
-    fun `FROM-CACHE is classified as cache hit`() {
-        val outcome = classifyCacheOutcome(
-            skipped = true,
-            didWork = false,
-            skipMessage = "FROM-CACHE"
+    fun `classifyCacheOutcome covers all state combinations`() {
+        data class Case(
+            val skipped: Boolean,
+            val didWork: Boolean,
+            val skipMessage: String?,
+            val expected: CacheOutcome
         )
 
-        assertEquals(CacheOutcome.HIT, outcome)
-    }
-
-    @Test
-    fun `skipped non cache task is classified as skipped`() {
-        val outcome = classifyCacheOutcome(
-            skipped = true,
-            didWork = false,
-            skipMessage = "UP-TO-DATE"
+        val cases = listOf(
+            Case(skipped = true, didWork = false, skipMessage = "FROM-CACHE", expected = CacheOutcome.HIT),
+            Case(skipped = true, didWork = true, skipMessage = "from-cache", expected = CacheOutcome.HIT),
+            Case(skipped = true, didWork = false, skipMessage = "UP-TO-DATE", expected = CacheOutcome.SKIPPED),
+            Case(skipped = true, didWork = false, skipMessage = null, expected = CacheOutcome.SKIPPED),
+            Case(skipped = false, didWork = true, skipMessage = null, expected = CacheOutcome.MISS),
+            Case(skipped = false, didWork = false, skipMessage = null, expected = CacheOutcome.NONE),
+            Case(skipped = false, didWork = false, skipMessage = "FROM-CACHE", expected = CacheOutcome.NONE)
         )
 
-        assertEquals(CacheOutcome.SKIPPED, outcome)
-    }
-
-    @Test
-    fun `did work task is classified as miss`() {
-        val outcome = classifyCacheOutcome(
-            skipped = false,
-            didWork = true,
-            skipMessage = null
-        )
-
-        assertEquals(CacheOutcome.MISS, outcome)
-    }
-
-    @Test
-    fun `idle task is classified as none`() {
-        val outcome = classifyCacheOutcome(
-            skipped = false,
-            didWork = false,
-            skipMessage = null
-        )
-
-        assertEquals(CacheOutcome.NONE, outcome)
+        cases.forEach { c ->
+            assertEquals(c.expected, classifyCacheOutcome(c.skipped, c.didWork, c.skipMessage))
+        }
     }
 }
