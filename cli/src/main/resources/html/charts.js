@@ -308,7 +308,7 @@ function createCharts(data) {
                 datasets: [
                     {
                         label: "Test Score",
-                        data: hasTestData ? [unitCoverage, uiCoverage, overallCoverage] : [40, 20, 32],
+                        data: [unitCoverage, uiCoverage, overallCoverage],
                         backgroundColor: [colors.primary, colors.accent, colors.border]
                     }
                 ]
