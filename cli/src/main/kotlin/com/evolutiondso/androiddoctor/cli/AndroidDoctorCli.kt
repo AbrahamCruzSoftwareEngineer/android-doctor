@@ -1,8 +1,6 @@
 package com.evolutiondso.androiddoctor.cli
 
-import com.evolutiondso.androiddoctor.cli.capabilities.AndroidDoctorCapabilities
-import com.evolutiondso.androiddoctor.cli.capabilities.CapabilityPlan
-import com.evolutiondso.androiddoctor.cli.model.AndroidDoctorReport
+import com.evolutiondso.androiddoctor.core.model.AndroidDoctorReport
 import com.evolutiondso.androiddoctor.cli.report.ReportLoader
 
 object AndroidDoctorCli {
@@ -31,10 +29,7 @@ object AndroidDoctorCli {
                 val report: AndroidDoctorReport = ReportLoader.load(reportPath)
                     ?: return
 
-                val plan = detectPlan(report)
-                val capabilities = AndroidDoctorCapabilities.forPlan(plan)
-
-                router.handleReport(report, capabilities, args)
+                router.handleReport(report, args)
             }
 
             else -> {
@@ -42,14 +37,5 @@ object AndroidDoctorCli {
                 router.printHelp()
             }
         }
-    }
-
-    /**
-     * For now: determines free/premium based on module count.
-     * Later: this will be driven by login/auth/API/etc.
-     */
-    private fun detectPlan(report: AndroidDoctorReport): CapabilityPlan {
-        val modules = report.checks?.moduleCount ?: 0
-        return if (modules > 5) CapabilityPlan.PREMIUM else CapabilityPlan.FREE
     }
 }

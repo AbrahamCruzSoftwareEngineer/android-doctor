@@ -1,7 +1,7 @@
 package com.evolutiondso.androiddoctor.cli.render.html
 
-import com.evolutiondso.androiddoctor.cli.model.ActionInfo
-import com.evolutiondso.androiddoctor.cli.model.AndroidDoctorReport
+import com.evolutiondso.androiddoctor.core.model.ActionInfo
+import com.evolutiondso.androiddoctor.core.model.AndroidDoctorReport
 
 object HtmlComponents {
 
@@ -546,16 +546,4 @@ object HtmlComponents {
             else -> ""
         }
     }
-
-    fun upgradeBanner(): String = """
-        <section class="upgrade-banner">
-            <div class="upgrade-title">Upgrade to Premium</div>
-            <p>Unlock charts, insights, and advanced exports for your AndroidDoctor reports.</p>
-            <ul>
-                <li>Interactive charts and trends</li>
-                <li>PDF + Markdown exports</li>
-                <li>Theme toggle and premium styling</li>
-            </ul>
-        </section>
-    """.trimIndent()
 }

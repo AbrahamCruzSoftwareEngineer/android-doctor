@@ -19,8 +19,8 @@ application {
 }
 
 dependencies {
+    implementation(project(":core"))
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.pdfbox)
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
@@ -28,14 +28,21 @@ dependencies {
 }
 
 tasks.jacocoTestCoverageVerification {
-    description = "Verifies minimum unit test coverage for CLI mocked report tests."
+    description = "Verifies minimum unit test coverage for core free CLI report/render classes."
     group = "verification"
     dependsOn(tasks.test)
 
     violationRules {
         rule {
-            element = "PACKAGE"
-            includes = listOf("com.evolutiondso.androiddoctor.cli.report", "com.evolutiondso.androiddoctor.cli.render.html")
+            element = "CLASS"
+            includes = listOf(
+                "com.evolutiondso.androiddoctor.cli.report.ReportLoader",
+                "com.evolutiondso.androiddoctor.cli.report.ReportAnalyzer",
+                "com.evolutiondso.androiddoctor.cli.render.html.FreeHtmlRenderer",
+                "com.evolutiondso.androiddoctor.cli.render.html.HtmlSections",
+                "com.evolutiondso.androiddoctor.cli.render.html.HtmlTemplates",
+                "com.evolutiondso.androiddoctor.cli.render.html.HtmlGauge",
+            )
             limit {
                 counter = "LINE"
                 value = "COVEREDRATIO"

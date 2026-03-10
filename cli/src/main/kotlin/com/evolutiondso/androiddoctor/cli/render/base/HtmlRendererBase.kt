@@ -1,6 +1,6 @@
 package com.evolutiondso.androiddoctor.cli.render.base
 
-import com.evolutiondso.androiddoctor.cli.model.AndroidDoctorReport
+import com.evolutiondso.androiddoctor.core.model.AndroidDoctorReport
 import java.nio.file.Files
 import java.nio.file.Paths
 
