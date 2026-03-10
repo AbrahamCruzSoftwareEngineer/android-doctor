@@ -80,6 +80,6 @@ class PremiumHtmlRendererTest {
         assertTrue(html.contains("\"unitCoverageScore\": 0"))
         assertTrue(html.contains("\"uiCoverageScore\": 0"))
         assertTrue(html.contains("\"overallScore\": 0"))
-        assertTrue(html.contains("Quote \\\"break\\\" and newline\\nattack"))
+        assertTrue(html.contains("Quote \"break\" and newline\\nattack"))
     }
 }
