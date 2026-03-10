@@ -1,6 +1,6 @@
 package com.evolutiondso.androiddoctor.cli.render.terminal
 
-import com.evolutiondso.androiddoctor.cli.model.AndroidDoctorReport
+import com.evolutiondso.androiddoctor.core.model.AndroidDoctorReport
 
 object TerminalRenderer {
 

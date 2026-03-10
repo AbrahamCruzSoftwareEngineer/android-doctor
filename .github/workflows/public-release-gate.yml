@@ -1,0 +1,30 @@
+name: Public Release Gate
+
+on:
+  pull_request:
+    branches: [ "**" ]
+  push:
+    branches: [ "main", "master" ]
+
+jobs:
+  verify-public-free:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Verify public free guardrails
+        run: ./gradlew verifyPublicFreeOnly verifyNoPrivateCoordinates
+
+      - name: Run check lifecycle
+        run: ./gradlew check
+
+      - name: Run doctorTest
+        run: ./gradlew doctorTest

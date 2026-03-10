@@ -60,9 +60,11 @@ It will **consume structured findings only** — the deterministic plugin remain
 
 ```text
 android-doctor/
+├─ core/          # Public shared model + neutral extension interfaces
 ├─ plugin/        # Gradle plugin (Collector)
-├─ cli/           # CLI Reporter            
-├─ docs/          # Roadmap, vision, architecture, schema
+├─ cli/           # Free CLI Reporter
+├─ docs/          # Roadmap, vision, architecture, split docs
+├─ .github/       # CI workflows (public release gate)
 ├─ samples/       # Sample Android projects
 └─ README.md      # You are here
 ```
@@ -70,3 +72,23 @@ android-doctor/
 ### Sandbox test app
 
 The repository includes `samples/android-doctor-architecture-test-app`, a purposely mixed-architecture Android app (MVC + MVP + MVVM + MVI signals) with known smells and legacy dependencies so AndroidDoctor can be validated against realistic findings.
+
+
+---
+
+## ✅ Public Release Gate (Free/Public Repo)
+
+Before merging a release candidate from this public repository, run:
+
+```bash
+./gradlew check
+./gradlew doctorTest
+```
+
+A public release candidate is **blocked** if any of the following fail:
+
+- `verifyPublicFreeOnly` (premium/licensing token leak guard)
+- `:cli:jacocoTestCoverageVerification` (free-path coverage gate)
+- `doctorTest` (free HTML/Markdown workflow verification)
+
+This gate helps ensure the public repository remains free-only and release-safe.

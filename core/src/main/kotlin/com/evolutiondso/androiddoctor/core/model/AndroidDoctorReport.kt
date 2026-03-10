@@ -1,4 +1,4 @@
-package com.evolutiondso.androiddoctor.cli.model
+package com.evolutiondso.androiddoctor.core.model
 
 import kotlinx.serialization.Serializable
 

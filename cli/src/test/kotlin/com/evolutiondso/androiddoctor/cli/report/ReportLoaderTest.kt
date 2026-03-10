@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.io.path.writeText
 
@@ -72,5 +73,34 @@ class ReportLoaderTest {
 
         val report = ReportLoader.load(reportFile.toString())
         assertNull(report)
+    }
+
+    @Test
+    fun `load resolves relative path from repoRoot system property`() {
+        val old = System.getProperty("androiddoctor.repoRoot")
+        try {
+            val root = tempDir.resolve("repo")
+            val reports = root.resolve("reports")
+            Files.createDirectories(reports)
+            val reportFile = reports.resolve("report.json")
+            reportFile.writeText(
+                """
+                {
+                  "project": { "name": "relative-app" },
+                  "scores": { "buildHealth": 90, "modernization": 88 }
+                }
+                """.trimIndent()
+            )
+
+            System.setProperty("androiddoctor.repoRoot", root.toString())
+            val report = ReportLoader.load("reports/report.json")
+
+            assertNotNull(report)
+            assertEquals("relative-app", report?.project?.name)
+            assertEquals(90, report?.scores?.buildHealth)
+        } finally {
+            if (old == null) System.clearProperty("androiddoctor.repoRoot")
+            else System.setProperty("androiddoctor.repoRoot", old)
+        }
     }
 }

@@ -1,6 +1,6 @@
 package com.evolutiondso.androiddoctor.cli.report
 
-import com.evolutiondso.androiddoctor.cli.model.AndroidDoctorReport
+import com.evolutiondso.androiddoctor.core.model.AndroidDoctorReport
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import java.nio.file.Path
