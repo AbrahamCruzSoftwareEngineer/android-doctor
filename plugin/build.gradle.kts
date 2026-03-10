@@ -14,6 +14,8 @@ java {
 
 val generatedVersionDir = layout.buildDirectory.dir("generated/sources/androiddoctorVersion/kotlin")
 val generateAndroidDoctorVersion = tasks.register("generateAndroidDoctorVersion") {
+    description = "Generates AndroidDoctorVersion.kt with the current project version."
+    group = "build setup"
     val outDir = generatedVersionDir.get().asFile
     outputs.dir(outDir)
 
@@ -46,11 +48,14 @@ dependencies {
     implementation(gradleApi())
     implementation(localGroovy())
 
-    testImplementation(platform("org.junit:junit-bom:5.10.2"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.junit4)
 }
 
 tasks.test {
+    description = "Runs unit tests for the AndroidDoctor Gradle plugin."
+    group = "verification"
     useJUnitPlatform()
 }
 
