@@ -31,6 +31,13 @@ class AndroidDoctorCollectTaskConfigFilterTest {
     }
 
     @Test
+    fun `handles mixed case and test prefixes defensively`() {
+        assertFalse(shouldAnalyze("DebugAndroidTestRuntimeClasspath"))
+        assertFalse(shouldAnalyze("TESTCompileClasspath"))
+        assertTrue(shouldAnalyze("ReleaseCompileClasspath"))
+    }
+
+    @Test
     fun `excludes unsupported arbitrary configurations`() {
         assertFalse(shouldAnalyze("archives"))
         assertFalse(shouldAnalyze("default"))

@@ -60,4 +60,26 @@ class PremiumHtmlRendererTest {
         assertTrue(html.contains("\"uiCoverageScore\": 49"))
         assertTrue(html.contains("\"overallScore\": 66"))
     }
+
+    @Test
+    fun `render handles empty report with fallbacks and escaped action text`() {
+        val report = AndroidDoctorReport(
+            project = ProjectInfo(name = "edge-case-app"),
+            actions = listOf(
+                ActionInfo(
+                    title = "Quote \"break\" and newline\\nattack",
+                    impact = ImpactInfo(buildHealthDelta = -1, modernizationDelta = -2)
+                )
+            )
+        )
+
+        val html = PremiumHtmlRenderer().render(report)
+
+        assertTrue(html.contains("Testing Coverage"))
+        assertTrue(html.contains("Modules with Unit Tests:</strong> 0 / 0"))
+        assertTrue(html.contains("\"unitCoverageScore\": 0"))
+        assertTrue(html.contains("\"uiCoverageScore\": 0"))
+        assertTrue(html.contains("\"overallScore\": 0"))
+        assertTrue(html.contains("Quote \\\"break\\\" and newline\\nattack"))
+    }
 }

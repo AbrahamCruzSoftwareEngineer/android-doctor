@@ -2,6 +2,7 @@ package com.evolutiondso.androiddoctor.cli.report
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
@@ -50,5 +51,26 @@ class ReportLoaderTest {
         assertEquals(87, report?.scores?.buildHealth)
         assertEquals(64, report?.tests?.overallScore)
         assertEquals(5, report?.tests?.uiTestFiles)
+    }
+
+    @Test
+    fun `load returns null when file is missing`() {
+        val missing = tempDir.resolve("missing-report.json")
+        val report = ReportLoader.load(missing.toString())
+        assertNull(report)
+    }
+
+    @Test
+    fun `load returns null for invalid json content`() {
+        val reportFile = tempDir.resolve("invalid.json")
+        reportFile.writeText(
+            """{
+              "project": "broken",
+              "scores": {
+            """.trimIndent()
+        )
+
+        val report = ReportLoader.load(reportFile.toString())
+        assertNull(report)
     }
 }
