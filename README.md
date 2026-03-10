@@ -90,5 +90,6 @@ A public release candidate is **blocked** if any of the following fail:
 - `verifyPublicFreeOnly` (premium/licensing token leak guard)
 - `:cli:jacocoTestCoverageVerification` (free-path coverage gate)
 - `doctorTest` (free HTML/Markdown workflow verification)
+- `verifyWrapperConsistency` (pinned wrapper distribution URL + validation checks)
 
 This gate helps ensure the public repository remains free-only and release-safe.
