@@ -139,7 +139,7 @@ tasks.register("verifyPublicFreeOnly") {
     group = "verification"
     description = "Fails if premium/licensing source markers are present in public CLI sources."
 
-    val forbidden = listOf("premium", "licensevalidator", "useridentity")
+    val forbidden = listOf("premium", "licensevalidator", "useridentity", "licensing", "entitlement")
     val sourceRoots = listOf(file("cli/src/main/kotlin"), file("cli/src/main/resources"))
 
     doLast {
