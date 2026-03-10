@@ -1,6 +1,6 @@
 package com.evolutiondso.androiddoctor.cli.render.markdown
 
-import com.evolutiondso.androiddoctor.cli.model.AndroidDoctorReport
+import com.evolutiondso.androiddoctor.core.model.AndroidDoctorReport
 import java.nio.file.Files
 import java.nio.file.Paths
 
@@ -57,7 +57,7 @@ object MarkdownRenderer {
         }
 
         return """
-        # AndroidDoctor Premium Markdown Report
+        # AndroidDoctor Markdown Report
 
         **Project:** $project  
         **Build Health:** $buildScore  

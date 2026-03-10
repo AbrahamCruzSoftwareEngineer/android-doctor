@@ -17,13 +17,13 @@ allprojects {
  * Full AndroidDoctor E2E test:
  * - Ensures plugin + CLI build
  * - Generates report.json
- * - Exports HTML / MD / PDF outputs
+ * - Exports HTML / Markdown outputs
  * - Tests auto-open flag (no crash)
  * - Validates output file existence
  */
 tasks.register("doctorTest") {
     group = "verification"
-    description = "Complete end-to-end test covering plugin, CLI, HTML, Markdown, PDF, and --open behavior."
+    description = "Complete end-to-end test covering plugin, CLI, HTML, Markdown, and --open behavior."
 
     dependsOn(":plugin:build")
     dependsOn(":cli:build")
@@ -99,7 +99,7 @@ tasks.register("doctorTest") {
         assertExists(htmlOut)
 
         // -----------------------------
-        // Step 4 — Markdown Export (Premium only)
+        // Step 4 — Markdown Export
         // -----------------------------
         val mdOut = "cli/build/androidDoctor/markdown/report.md"
         timed("CLI Markdown export") {
@@ -115,23 +115,7 @@ tasks.register("doctorTest") {
         assertExists(mdOut)
 
         // -----------------------------
-        // Step 5 — PDF Export (Premium only)
-        // -----------------------------
-        val pdfOut = "cli/build/androidDoctor/pdf/report.pdf"
-        timed("CLI PDF export") {
-            step("Exporting PDF report...")
-            exec {
-                commandLine(
-                    "./gradlew", ":cli:run",
-                    "--args=--report $reportJson --pdf"
-                )
-                isIgnoreExitValue = true
-            }.exitValue
-        }
-        assertExists(pdfOut)
-
-        // -----------------------------
-        // Step 6 — Auto-open Test (HTML)
+        // Step 5 — Auto-open Test (HTML)
         // -----------------------------
         timed("CLI --open test") {
             step("Testing auto-open flag (will not fail if OS cannot open)")
@@ -147,5 +131,33 @@ tasks.register("doctorTest") {
 
         banner("ALL STEPS COMPLETED SUCCESSFULLY")
         println("${GREEN}AndroidDoctor full E2E test passed!${RESET}")
+    }
+}
+
+tasks.register("verifyPublicFreeOnly") {
+    group = "verification"
+    description = "Fails if premium/licensing source markers are present in public CLI sources."
+
+    val forbidden = listOf("premium", "licensevalidator", "useridentity")
+    val sourceRoots = listOf(file("cli/src/main/kotlin"), file("cli/src/main/resources"))
+
+    doLast {
+        val violations = mutableListOf<String>()
+        sourceRoots.filter { it.exists() }.forEach { root ->
+            root.walkTopDown()
+                .filter { it.isFile && (it.extension == "kt" || it.extension == "md" || it.extension == "js" || it.extension == "css" || it.extension == "html") }
+                .forEach { file ->
+                    val text = file.readText().lowercase()
+                    forbidden.forEach { token ->
+                        if (text.contains(token)) {
+                            violations += "${file.relativeTo(rootProject.projectDir)} contains forbidden token '$token'"
+                        }
+                    }
+                }
+        }
+
+        if (violations.isNotEmpty()) {
+            throw GradleException("Public/free guardrail failed:\n" + violations.joinToString("\n"))
+        }
     }
 }

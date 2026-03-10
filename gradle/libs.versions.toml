@@ -3,7 +3,6 @@ junitBom = "5.10.2"
 junit = "4.13.2"
 kotlin = "1.9.24"
 serializationJson = "1.6.3"
-pdfbox = "2.0.30"
 androidxJunitExt = "1.1.5"
 espresso = "3.5.1"
 
@@ -15,4 +14,3 @@ kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotl
 androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "androidxJunitExt" }
 androidx-test-espresso-core = { module = "androidx.test.espresso:espresso-core", version.ref = "espresso" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serializationJson" }
-pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }

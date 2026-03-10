@@ -19,8 +19,8 @@ application {
 }
 
 dependencies {
+    implementation(project(":core"))
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.pdfbox)
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)

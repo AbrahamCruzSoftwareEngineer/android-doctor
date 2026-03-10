@@ -1,9 +1,9 @@
 package com.evolutiondso.androiddoctor.cli
 
-import com.evolutiondso.androiddoctor.cli.capabilities.CapabilitySet
-import com.evolutiondso.androiddoctor.cli.model.AndroidDoctorReport
+import com.evolutiondso.androiddoctor.core.model.AndroidDoctorReport
+import com.evolutiondso.androiddoctor.cli.render.html.FreeHtmlRenderer
 import com.evolutiondso.androiddoctor.cli.render.markdown.MarkdownRenderer
-import com.evolutiondso.androiddoctor.cli.render.pdf.PdfRenderer
+import com.evolutiondso.androiddoctor.cli.render.terminal.TerminalRenderer
 import java.io.File
 
 /**
@@ -17,13 +17,12 @@ class CommandRouter {
             AndroidDoctor CLI
             
             Usage:
-              androiddoctor --report <file> [--html] [--md] [--pdf] [--open]
+              androiddoctor --report <file> [--html] [--md] [--open]
               
             Options:
               --report, -r      Path to report.json
               --html            Export HTML report
-              --md              Export Markdown report (Premium only)
-              --pdf             Export PDF report     (Premium only)
+              --md              Export Markdown report
               --open            Open the exported file automatically
               --help, -h        Show this help
             """.trimIndent()
@@ -31,29 +30,21 @@ class CommandRouter {
     }
 
     /**
-     * Main dispatch for rendering a loaded report based on capability set.
+     * Main dispatch for rendering a loaded report.
      */
-    fun handleReport(report: AndroidDoctorReport, capabilities: CapabilitySet, cliArgs: Array<String>) {
+    fun handleReport(report: AndroidDoctorReport, cliArgs: Array<String>) {
         val args = parsedArgs(cliArgs)
 
         var exported = false
         var exportedFile: String? = null
 
-        // -----------------------
-        // HTML EXPORT
-        // -----------------------
-        if (args.exportHtml && capabilities.canExportHtml()) {
-            capabilities.htmlRenderer?.let { renderer ->
-                val outputPath = "build/androidDoctor/html/report.html"
-                exportedFile = renderer.renderToFile(report, outputPath)
-                println("HTML report exported → $exportedFile")
-                exported = true
-            }
+        if (args.exportHtml) {
+            val outputPath = "build/androidDoctor/html/report.html"
+            exportedFile = FreeHtmlRenderer().renderToFile(report, outputPath)
+            println("HTML report exported → $exportedFile")
+            exported = true
         }
 
-        // -----------------------
-        // MARKDOWN EXPORT
-        // -----------------------
         if (args.exportMarkdown) {
             val outputPath = "build/androidDoctor/markdown/report.md"
             exportedFile = MarkdownRenderer.renderToFile(report, outputPath)
@@ -61,38 +52,19 @@ class CommandRouter {
             exported = true
         }
 
-        // -----------------------
-        // PDF EXPORT
-        // -----------------------
-        if (args.exportPdf) {
-            val outputPath = "build/androidDoctor/pdf/report.pdf"
-            exportedFile = PdfRenderer.renderToFile(report, outputPath)
-            println("📄 PDF report exported → $exportedFile")
-            exported = true
-        }
-
-        // AUTO-OPEN exported file
         if (exported && args.openFile && exportedFile != null) {
-            openFile(exportedFile!!)
+            openFile(exportedFile)
         }
 
-        // If exports requested, do not print terminal summary
         if (exported) return
 
-        // -----------------------
-        // DEFAULT: TERMINAL SUMMARY
-        // -----------------------
-        capabilities.terminalRenderer.render(report)
+        TerminalRenderer.render(report)
     }
 
-    /**
-     * Parse flags from the real CLI invocation.
-     */
     private fun parsedArgs(raw: Array<String>): ParsedArgs {
         return ParsedArgs(
             exportHtml = raw.contains("--html"),
             exportMarkdown = raw.contains("--md"),
-            exportPdf = raw.contains("--pdf"),
             openFile = raw.contains("--open")
         )
     }
@@ -100,13 +72,9 @@ class CommandRouter {
     private data class ParsedArgs(
         val exportHtml: Boolean = false,
         val exportMarkdown: Boolean = false,
-        val exportPdf: Boolean = false,
         val openFile: Boolean = false
     )
 
-    /**
-     * Opens a file using the OS default program.
-     */
     private fun openFile(path: String) {
         val file = File(path)
         if (!file.exists()) {
