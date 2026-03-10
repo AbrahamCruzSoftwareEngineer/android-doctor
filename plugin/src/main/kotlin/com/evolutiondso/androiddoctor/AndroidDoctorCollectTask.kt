@@ -136,7 +136,8 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
             moduleDiagnostics = moduleDiagnostics,
             buildMetrics = buildMetrics,
             environmentDiagnostics = environmentDiagnostics,
-            testDiagnostics = testDiagnostics
+            testDiagnostics = testDiagnostics,
+            architectureDiagnostics = architectureDiagnostics
         )
 
         val actionsJson = actionsToJson(actions)
@@ -343,6 +344,10 @@ private fun computeScores(
         modern -= 20
         modernizationNotes += "-20 missing domain layer"
     }
+    if (architectureDiagnostics.violations.any { it.type == "ArchitectureInconsistency" }) {
+        modern -= 25
+        modernizationNotes += "-25 mixed architectures detected (high risk)"
+    }
 
     if (testDiagnostics.overallScore < 60) { val delta=((60 - testDiagnostics.overallScore) / 2); modern -= delta; modernizationNotes += "-$delta low testing score (${testDiagnostics.overallScore})" }
     if (testDiagnostics.modulesWithUiTests == 0) { modern -= 8; modernizationNotes += "-8 no UI tests across modules" }
@@ -398,7 +403,8 @@ private fun buildTopActions(
     moduleDiagnostics: ModuleDiagnostics,
     buildMetrics: BuildMetricsSnapshot?,
     environmentDiagnostics: EnvironmentDiagnostics,
-    testDiagnostics: TestDiagnostics
+    testDiagnostics: TestDiagnostics,
+    architectureDiagnostics: ArchitectureDiagnostics
 ): List<Action> {
 
     val actions = mutableListOf<Action>()
@@ -436,6 +442,19 @@ private fun buildTopActions(
             why = "No modules currently include androidTest sources.",
             how = "Add smoke and critical path instrumentation tests under src/androidTest for app and key feature modules.",
             impact = Impact(6, 5)
+        )
+    }
+
+    if (architectureDiagnostics.violations.any { it.type == "ArchitectureInconsistency" }) {
+        actions += Action(
+            id = "STOP_MIXED_ARCHITECTURES",
+            priority = 1,
+            severity = "HIGH",
+            effort = "M",
+            title = "Stop mixing architecture patterns across modules",
+            why = "Mixed architectures (MVC/MVP/MVVM/MVI) were detected. This creates maintainability, onboarding, and regression risks.",
+            how = "Choose a target architecture (MVVM or MVI), define migration guidelines, and refactor legacy modules incrementally.",
+            impact = Impact(10, 14)
         )
     }
 
