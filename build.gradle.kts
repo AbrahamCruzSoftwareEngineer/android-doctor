@@ -191,17 +191,12 @@ tasks.register("verifyNoPrivateCoordinates") {
     group = "verification"
     description = "Fails if public build scripts reference private premium coordinates."
 
-    val forbidden = listOf(
-        "android-doctor-premium",
-        "com.androiddoctor.premium",
-        "com.androiddoctor:premium",
-        "renderer-premium",
-        "analysis-premium",
-        "export-premium",
-        "cli-premium"
-    )
+    val forbidden = file("config/guardrails/private-coordinate-tokens.txt")
+        .readLines()
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !it.startsWith("#") }
 
-    val filesToScan = listOf(
+    val filesToScan = (listOf(
         file("settings.gradle.kts"),
         file("build.gradle.kts"),
         file("gradle/libs.versions.toml")
@@ -210,7 +205,7 @@ tasks.register("verifyNoPrivateCoordinates") {
         exclude("**/.gradle/**")
         exclude("**/build/**")
         exclude("samples/**")
-    }.files
+    }.files).distinct()
 
     doLast {
         val violations = mutableListOf<String>()

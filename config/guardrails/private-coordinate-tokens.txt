@@ -1,0 +1,7 @@
+android-doctor-premium
+com.androiddoctor.premium
+com.androiddoctor:premium
+renderer-premium
+analysis-premium
+export-premium
+cli-premium
