@@ -67,7 +67,7 @@ tasks.register("doctorTest") {
         // Step 2 — Generate report.json
         timed("androidDoctorCollect") {
             step("Running androidDoctorCollect in samples/android-doctor-architecture-test-app")
-            exec {
+            project.exec {
                 workingDir = file("samples/android-doctor-architecture-test-app")
                 commandLine("../../gradlew", "androidDoctorCollect")
                 isIgnoreExitValue = true
@@ -89,7 +89,7 @@ tasks.register("doctorTest") {
         val htmlOut = "cli/build/androidDoctor/html/report.html"
         timed("CLI HTML export") {
             step("Exporting HTML report...")
-            exec {
+            project.exec {
                 commandLine(
                     "./gradlew", ":cli:run",
                     "--args=--report $reportJson --html"
@@ -105,7 +105,7 @@ tasks.register("doctorTest") {
         val mdOut = "cli/build/androidDoctor/markdown/report.md"
         timed("CLI Markdown export") {
             step("Exporting Markdown report...")
-            exec {
+            project.exec {
                 commandLine(
                     "./gradlew", ":cli:run",
                     "--args=--report $reportJson --md"
@@ -120,7 +120,7 @@ tasks.register("doctorTest") {
         // -----------------------------
         timed("CLI --open test") {
             step("Testing auto-open flag (will not fail if OS cannot open)")
-            exec {
+            project.exec {
                 commandLine(
                     "./gradlew", ":cli:run",
                     "--args=--report $reportJson --html --open"
