@@ -1180,8 +1180,8 @@ private fun collectTestDiagnostics(project: Project, metrics: BuildMetricsSnapsh
     fun countTestFiles(module: Project, sourceSet: String): Int {
         val dir = module.projectDir.resolve("src/$sourceSet")
         if (!dir.exists()) return 0
-        return module.fileTree(dir).matching {
-            include("**/*.kt", "**/*.java")
+        return module.fileTree(dir).matching { pattern ->
+            pattern.include("**/*.kt", "**/*.java")
         }.files.size
     }
 
