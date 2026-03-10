@@ -57,10 +57,22 @@ tasks.register("doctorTest") {
             }
         }
 
-        fun runCommand(workingDir: File? = null, vararg args: String): Int {
+        fun runCommand(vararg args: String): Int {
+            val process = ProcessBuilder(*args)
+                .apply { redirectErrorStream(true) }
+                .start()
+
+            process.inputStream.bufferedReader().useLines { lines ->
+                lines.forEach { println(it) }
+            }
+
+            return process.waitFor()
+        }
+
+        fun runCommandInDir(workingDir: File, vararg args: String): Int {
             val process = ProcessBuilder(*args)
                 .apply {
-                    if (workingDir != null) directory(workingDir)
+                    directory(workingDir)
                     redirectErrorStream(true)
                 }
                 .start()
@@ -82,8 +94,8 @@ tasks.register("doctorTest") {
         // Step 2 — Generate report.json
         timed("androidDoctorCollect") {
             step("Running androidDoctorCollect in samples/android-doctor-architecture-test-app")
-            runCommand(
-                workingDir = file("samples/android-doctor-architecture-test-app"),
+            runCommandInDir(
+                file("samples/android-doctor-architecture-test-app"),
                 "../../gradlew", "androidDoctorCollect"
             )
         }
