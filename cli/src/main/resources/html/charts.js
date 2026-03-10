@@ -204,9 +204,7 @@ function createCharts(data) {
     if (buildCacheCanvas) {
         const cacheHits = diagnostics.cacheHits ?? 0;
         const cacheMisses = diagnostics.cacheMisses ?? 0;
-        const cacheHasData = hasRealData([cacheHits, cacheMisses]);
-
-        setNoData("buildCacheChart", !cacheHasData);
+        setNoData("buildCacheChart", false);
 
         window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(buildCacheCanvas, {
             type: "bar",

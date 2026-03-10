@@ -109,6 +109,9 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         val environmentDiagnostics = collectEnvironmentDiagnostics()
         val configCacheRequested = readConfigurationCacheRequestedOrNull(project)
 
+        val analyzedProjectPathsJson = project.rootProject.allprojects.joinToString(", ") { "\"${it.path}\"" }
+        val analysisRootDir = project.rootProject.projectDir.absolutePath
+
         // Recommended actions
         val actions = buildTopActions(
             moduleCount = moduleCount,
@@ -226,6 +229,11 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
     }
   },
   "modulesDiagnostics": ${moduleDiagnostics.toJson()},
+  "analysisScope": {
+    "rootProjectDir": ${quote(analysisRootDir)},
+    "analyzedProjects": [ $analyzedProjectPathsJson ],
+    "analyzesAllRootProjects": true
+  },
   "architecture": ${architectureDiagnostics.toJson()},
   "annotationProcessing": ${annotationDiagnostics.toJson()},
   "actions": $actionsJson,
