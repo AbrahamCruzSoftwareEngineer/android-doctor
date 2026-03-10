@@ -51,7 +51,7 @@ dependencies {
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
-    testImplementation(libs.junit4)
+    testImplementation(libs.junit)
 }
 
 tasks.test {

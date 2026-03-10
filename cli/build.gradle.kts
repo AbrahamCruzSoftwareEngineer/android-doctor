@@ -19,12 +19,12 @@ application {
 }
 
 dependencies {
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-    implementation("org.apache.pdfbox:pdfbox:2.0.30")
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.pdfbox)
 
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
-    testImplementation(libs.junit4)
+    testImplementation(libs.junit)
 }
 
 tasks.jacocoTestCoverageVerification {
