@@ -45,4 +45,9 @@ dependencies {
     implementation(project(":core-data"))
 
     kapt("com.google.dagger:dagger-compiler:2.44")
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlin:kotlin-test:1.9.24")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 }
