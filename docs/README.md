@@ -7,6 +7,7 @@ Planned documents include:
 
 - **ROADMAP.md** — phased milestones and development plan
 - **FREE_PREMIUM_SPLIT_PLAN.md** — recommended architecture and migration plan for secure Free/Premium separation
+- **PRIVATE_PREMIUM_BOOTSTRAP_CHECKLIST.md** — actionable checklist for creating the private premium repository
 - **VISION.md** — guiding principles, philosophy, goals
 - **../core/README.md** — public core API contract and extension-surface rules
 - **ARCHITECTURE.md** — high-level system architecture and module responsibilities

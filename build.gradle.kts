@@ -166,4 +166,48 @@ tasks.register("verifyPublicFreeOnly") {
 
 tasks.named("check") {
     dependsOn("verifyPublicFreeOnly")
+    dependsOn("verifyNoPrivateCoordinates")
+}
+
+
+tasks.register("verifyNoPrivateCoordinates") {
+    group = "verification"
+    description = "Fails if public build scripts reference private premium coordinates."
+
+    val forbidden = listOf(
+        "android-doctor-premium",
+        "com.androiddoctor.premium",
+        "com.androiddoctor:premium",
+        "renderer-premium",
+        "analysis-premium",
+        "export-premium",
+        "cli-premium"
+    )
+
+    val filesToScan = listOf(
+        file("settings.gradle.kts"),
+        file("build.gradle.kts"),
+        file("gradle/libs.versions.toml")
+    ) + fileTree(rootDir) {
+        include("**/build.gradle.kts")
+        exclude("**/.gradle/**")
+        exclude("**/build/**")
+        exclude("samples/**")
+    }.files
+
+    doLast {
+        val violations = mutableListOf<String>()
+        filesToScan.filter { it.exists() }.forEach { file ->
+            val text = file.readText().lowercase()
+            forbidden.forEach { token ->
+                if (text.contains(token)) {
+                    violations += "${file.relativeTo(rootProject.projectDir)} contains forbidden token '$token'"
+                }
+            }
+        }
+
+        if (violations.isNotEmpty()) {
+            throw GradleException("Private coordinate guard failed:\n" + violations.joinToString("\n"))
+        }
+    }
 }
