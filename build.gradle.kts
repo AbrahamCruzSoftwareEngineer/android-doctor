@@ -1,4 +1,5 @@
 plugins {
+    id("base")
     kotlin("jvm") version "1.9.24" apply false
     kotlin("plugin.serialization") version "1.9.24" apply false
 }
@@ -160,4 +161,9 @@ tasks.register("verifyPublicFreeOnly") {
             throw GradleException("Public/free guardrail failed:\n" + violations.joinToString("\n"))
         }
     }
+}
+
+
+tasks.named("check") {
+    dependsOn("verifyPublicFreeOnly")
 }
