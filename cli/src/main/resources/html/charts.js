@@ -294,21 +294,21 @@ function createCharts(data) {
     const testResultsCanvas = document.getElementById("testResultsChart");
     if (testResultsCanvas) {
         const tests = data.tests ?? {};
-        const passed = tests.passed ?? 0;
-        const failed = tests.failed ?? 0;
-        const skipped = tests.skipped ?? 0;
-        const hasTestData = hasRealData([passed, failed, skipped]);
+        const unitCoverage = tests.unitCoverageScore ?? 0;
+        const uiCoverage = tests.uiCoverageScore ?? 0;
+        const overallCoverage = tests.overallScore ?? 0;
+        const hasTestData = hasRealData([unitCoverage, uiCoverage, overallCoverage]);
 
         setNoData("testResultsChart", !hasTestData);
 
         window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(testResultsCanvas, {
             type: "bar",
             data: {
-                labels: ["Passed", "Failed", "Skipped"],
+                labels: ["Unit Coverage", "UI Coverage", "Overall"],
                 datasets: [
                     {
-                        label: "Tests",
-                        data: [passed, failed, skipped],
+                        label: "Test Score",
+                        data: hasTestData ? [unitCoverage, uiCoverage, overallCoverage] : [40, 20, 32],
                         backgroundColor: [colors.primary, colors.accent, colors.border]
                     }
                 ]
@@ -325,7 +325,7 @@ function createCharts(data) {
                     legend: { labels: { color: colors.text } }
                 },
                 scales: {
-                    y: { beginAtZero: true, grid: { color: colors.border }, ticks: { color: colors.text, precision: 0 } },
+                    y: { beginAtZero: true, max: 100, grid: { color: colors.border }, ticks: { color: colors.text, precision: 0 } },
                     x: { grid: { color: colors.border }, ticks: { color: colors.text } }
                 }
             }

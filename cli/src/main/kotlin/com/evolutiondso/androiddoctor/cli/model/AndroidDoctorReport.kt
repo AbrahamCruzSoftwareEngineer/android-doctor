@@ -22,6 +22,7 @@ data class AndroidDoctorReport(
     val taskTimings: List<TaskTimingSimpleInfo>? = null,
     val compose: ComposeInfo? = null,
     val annotationProcessing: AnnotationProcessingInfo? = null,
+    val tests: TestsInfo? = null,
     val environment: EnvironmentInfo? = null,
     val actions: List<ActionInfo>? = null,
     val plugins: PluginsInfo? = null,
@@ -63,7 +64,24 @@ data class AndroidInfo(
 @Serializable
 data class ScoresInfo(
     val buildHealth: Int? = null,
-    val modernization: Int? = null
+    val modernization: Int? = null,
+    val testingOverall: Int? = null,
+    val unitTestCoverage: Int? = null,
+    val uiTestCoverage: Int? = null
+)
+
+@Serializable
+data class TestsInfo(
+    val moduleCount: Int? = null,
+    val modulesWithUnitTests: Int? = null,
+    val modulesWithUiTests: Int? = null,
+    val unitTestFiles: Int? = null,
+    val uiTestFiles: Int? = null,
+    val executedUnitTestTasks: Int? = null,
+    val executedUiTestTasks: Int? = null,
+    val unitCoverageScore: Int? = null,
+    val uiCoverageScore: Int? = null,
+    val overallScore: Int? = null
 )
 
 @Serializable

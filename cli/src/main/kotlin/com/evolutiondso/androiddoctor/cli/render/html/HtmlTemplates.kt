@@ -63,6 +63,32 @@ object HtmlTemplates {
             }"""
         } ?: "[]"
 
+        val testsJson = report.tests?.let { tests ->
+            """{
+                "moduleCount": ${tests.moduleCount ?: 0},
+                "modulesWithUnitTests": ${tests.modulesWithUnitTests ?: 0},
+                "modulesWithUiTests": ${tests.modulesWithUiTests ?: 0},
+                "unitTestFiles": ${tests.unitTestFiles ?: 0},
+                "uiTestFiles": ${tests.uiTestFiles ?: 0},
+                "executedUnitTestTasks": ${tests.executedUnitTestTasks ?: 0},
+                "executedUiTestTasks": ${tests.executedUiTestTasks ?: 0},
+                "unitCoverageScore": ${tests.unitCoverageScore ?: report.scores?.unitTestCoverage ?: 0},
+                "uiCoverageScore": ${tests.uiCoverageScore ?: report.scores?.uiTestCoverage ?: 0},
+                "overallScore": ${tests.overallScore ?: report.scores?.testingOverall ?: 0}
+            }"""
+        } ?: """{
+                "moduleCount": 0,
+                "modulesWithUnitTests": 0,
+                "modulesWithUiTests": 0,
+                "unitTestFiles": 0,
+                "uiTestFiles": 0,
+                "executedUnitTestTasks": 0,
+                "executedUiTestTasks": 0,
+                "unitCoverageScore": ${report.scores?.unitTestCoverage ?: 0},
+                "uiCoverageScore": ${report.scores?.uiTestCoverage ?: 0},
+                "overallScore": ${report.scores?.testingOverall ?: 0}
+            }"""
+
 
         val dataJson = """
             window.__ANDROID_DOCTOR_DATA__ = {
@@ -88,6 +114,7 @@ object HtmlTemplates {
                     execution: $executionShare,
                     annotation: $annotationShare
                 },
+                tests: $testsJson,
                 actions: $actionsJson
             };
         """.trimIndent()

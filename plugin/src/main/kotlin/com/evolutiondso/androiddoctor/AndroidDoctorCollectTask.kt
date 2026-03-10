@@ -106,6 +106,7 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         val dependencyDiagnostics = collectDependencyDiagnostics(project)
         val moduleDiagnostics = collectModuleDiagnostics(project, buildMetrics)
         val annotationDiagnostics = collectAnnotationDiagnostics(project, buildMetrics)
+        val testDiagnostics = collectTestDiagnostics(project, buildMetrics)
         val environmentDiagnostics = collectEnvironmentDiagnostics()
         val configCacheRequested = readConfigurationCacheRequestedOrNull(project)
 
@@ -177,7 +178,10 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
   },
   "scores": {
     "buildHealth": ${scores.buildHealth},
-    "modernization": ${scores.modernization}
+    "modernization": ${scores.modernization},
+    "testingOverall": ${testDiagnostics.overallScore},
+    "unitTestCoverage": ${testDiagnostics.unitCoverageScore},
+    "uiTestCoverage": ${testDiagnostics.uiCoverageScore}
   },
   "performance": {
     "configurationMs": ${buildMetrics?.configurationDurationMs ?: "null"},
@@ -236,6 +240,7 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
   },
   "architecture": ${architectureDiagnostics.toJson()},
   "annotationProcessing": ${annotationDiagnostics.toJson()},
+  "tests": ${testDiagnostics.toJson()},
   "actions": $actionsJson,
   "plugins": {
     "appliedKnownPluginIds": [ $appliedKnownPluginsJson ]
@@ -1136,6 +1141,95 @@ private data class EnvironmentDiagnostics(
         }
         """.trimIndent()
     }
+}
+
+private data class TestDiagnostics(
+    val moduleCount: Int,
+    val modulesWithUnitTests: Int,
+    val modulesWithUiTests: Int,
+    val unitTestFiles: Int,
+    val uiTestFiles: Int,
+    val executedUnitTestTasks: Int,
+    val executedUiTestTasks: Int,
+    val unitCoverageScore: Int,
+    val uiCoverageScore: Int,
+    val overallScore: Int
+) {
+    fun toJson(): String {
+        return """
+        {
+          "moduleCount": $moduleCount,
+          "modulesWithUnitTests": $modulesWithUnitTests,
+          "modulesWithUiTests": $modulesWithUiTests,
+          "unitTestFiles": $unitTestFiles,
+          "uiTestFiles": $uiTestFiles,
+          "executedUnitTestTasks": $executedUnitTestTasks,
+          "executedUiTestTasks": $executedUiTestTasks,
+          "unitCoverageScore": $unitCoverageScore,
+          "uiCoverageScore": $uiCoverageScore,
+          "overallScore": $overallScore
+        }
+        """.trimIndent()
+    }
+}
+
+private fun collectTestDiagnostics(project: Project, metrics: BuildMetricsSnapshot?): TestDiagnostics {
+    val modules = project.rootProject.subprojects
+    val moduleCount = modules.size.coerceAtLeast(1)
+
+    fun countTestFiles(module: Project, sourceSet: String): Int {
+        val dir = module.projectDir.resolve("src/$sourceSet")
+        if (!dir.exists()) return 0
+        return module.fileTree(dir).matching {
+            include("**/*.kt", "**/*.java")
+        }.files.size
+    }
+
+    var modulesWithUnit = 0
+    var modulesWithUi = 0
+    var unitFiles = 0
+    var uiFiles = 0
+
+    modules.forEach { module ->
+        val moduleUnitFiles = countTestFiles(module, "test")
+        val moduleUiFiles = countTestFiles(module, "androidTest")
+        if (moduleUnitFiles > 0) modulesWithUnit++
+        if (moduleUiFiles > 0) modulesWithUi++
+        unitFiles += moduleUnitFiles
+        uiFiles += moduleUiFiles
+    }
+
+    val timings = metrics?.taskDurations.orEmpty()
+    val executedUnitTasks = timings.count { timing ->
+        val task = timing.path.lowercase()
+        !timing.skipped && task.contains("test") && !task.contains("androidtest") && !task.contains("connected")
+    }
+    val executedUiTasks = timings.count { timing ->
+        val task = timing.path.lowercase()
+        !timing.skipped && (task.contains("androidtest") || task.contains("connected"))
+    }
+
+    val unitModuleCoverage = (modulesWithUnit * 100) / moduleCount
+    val uiModuleCoverage = (modulesWithUi * 100) / moduleCount
+    val unitExecutionBoost = (executedUnitTasks * 5).coerceAtMost(20)
+    val uiExecutionBoost = (executedUiTasks * 8).coerceAtMost(20)
+
+    val unitScore = (unitModuleCoverage + unitExecutionBoost).coerceIn(0, 100)
+    val uiScore = (uiModuleCoverage + uiExecutionBoost).coerceIn(0, 100)
+    val overallScore = ((unitScore * 0.6) + (uiScore * 0.4)).toInt().coerceIn(0, 100)
+
+    return TestDiagnostics(
+        moduleCount = moduleCount,
+        modulesWithUnitTests = modulesWithUnit,
+        modulesWithUiTests = modulesWithUi,
+        unitTestFiles = unitFiles,
+        uiTestFiles = uiFiles,
+        executedUnitTestTasks = executedUnitTasks,
+        executedUiTestTasks = executedUiTasks,
+        unitCoverageScore = unitScore,
+        uiCoverageScore = uiScore,
+        overallScore = overallScore
+    )
 }
 
 private fun collectDependencyDiagnostics(project: Project): DependencyDiagnostics {
