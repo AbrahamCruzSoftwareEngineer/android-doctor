@@ -1138,42 +1138,60 @@ private fun collectDependencyDiagnostics(project: Project): DependencyDiagnostic
     val resolvedVersions = mutableMapOf<String, MutableSet<String>>()
 
     project.rootProject.allprojects.forEach { module ->
-        module.configurations.filter { it.isCanBeResolved }.forEach { configuration ->
-            val declared = configuration.dependencies
-                .filterIsInstance<org.gradle.api.artifacts.ExternalModuleDependency>()
-                .mapNotNull { dep ->
-                    val group = dep.group ?: return@mapNotNull null
-                    val name = dep.name
-                    val version = dep.version
-                    Triple(group, name, version)
+        module.configurations
+            .filter { it.isCanBeResolved && shouldAnalyzeResolvedConfiguration(it.name) }
+            .forEach { configuration ->
+                val declared = configuration.dependencies
+                    .filterIsInstance<org.gradle.api.artifacts.ExternalModuleDependency>()
+                    .mapNotNull { dep ->
+                        val group = dep.group ?: return@mapNotNull null
+                        val name = dep.name
+                        val version = dep.version
+                        Triple(group, name, version)
+                    }
+
+                val resolved = runCatching {
+                    configuration.incoming.resolutionResult.allComponents
+                        .mapNotNull { component ->
+                            val id = component.id as? org.gradle.api.artifacts.component.ModuleComponentIdentifier
+                                ?: return@mapNotNull null
+                            Triple(id.group, id.module, id.version)
+                        }
+                }.getOrElse {
+                    project.logger.debug(
+                        "AndroidDoctor: skipping dependency resolution for ${module.path}:${configuration.name} (${it.message})"
+                    )
+                    emptyList()
                 }
 
-            val resolved = configuration.incoming.resolutionResult.allComponents
-                .mapNotNull { component ->
-                    val id = component.id as? org.gradle.api.artifacts.component.ModuleComponentIdentifier
-                        ?: return@mapNotNull null
-                    Triple(id.group, id.module, id.version)
+                if (resolved.isNotEmpty()) {
+                    resolved.forEach { (group, name, version) ->
+                        resolvedVersions.getOrPut("$group:$name") { mutableSetOf() }.add(version)
+                    }
+
+                    val resolvedKeys = resolved.map { "${it.first}:${it.second}" }.toSet()
+                    declared.forEach { (group, name, version) ->
+                        if ("$group:$name" !in resolvedKeys) {
+                            unused += DependencyUnused(group, name, version, configuration.name)
+                        }
+                    }
                 }
 
-            resolved.forEach { (group, name, version) ->
-                resolvedVersions.getOrPut("$group:$name") { mutableSetOf() }.add(version)
+                runCatching {
+                    configuration.resolvedConfiguration.lenientConfiguration.artifacts
+                }.getOrElse {
+                    project.logger.debug(
+                        "AndroidDoctor: skipping artifact sizing for ${module.path}:${configuration.name} (${it.message})"
+                    )
+                    emptySet()
+                }.forEach { artifact ->
+                    val id = artifact.moduleVersion.id
+                    val size = artifact.file.length()
+                    if (size > 5L * 1024 * 1024) {
+                        heavy += DependencyHeavy(id.group, id.name, id.version, size)
+                    }
+                }
             }
-
-            val resolvedKeys = resolved.map { "${it.first}:${it.second}" }.toSet()
-            declared.forEach { (group, name, version) ->
-                if ("$group:$name" !in resolvedKeys) {
-                    unused += DependencyUnused(group, name, version, configuration.name)
-                }
-            }
-
-            configuration.resolvedConfiguration.lenientConfiguration.artifacts.forEach { artifact ->
-                val id = artifact.moduleVersion.id
-                val size = artifact.file.length()
-                if (size > 5L * 1024 * 1024) {
-                    heavy += DependencyHeavy(id.group, id.name, id.version, size)
-                }
-            }
-        }
     }
 
     resolvedVersions.forEach { (module, versions) ->
@@ -1188,6 +1206,17 @@ private fun collectDependencyDiagnostics(project: Project): DependencyDiagnostic
     }
 
     return DependencyDiagnostics(duplicates, outdated, unused, heavy)
+}
+
+
+private fun shouldAnalyzeResolvedConfiguration(configurationName: String): Boolean {
+    val name = configurationName.lowercase()
+    if (name.contains("androidtest") || name.contains("unittest") || name.startsWith("test")) return false
+    if (name.contains("lint") || name.contains("detachedconfiguration") || name.contains("kotlincompilerplugin")) return false
+    return name.contains("compileclasspath") ||
+        name.contains("runtimeclasspath") ||
+        name.endsWith("implementationdependenciesmetadata") ||
+        name.endsWith("apidependenciesmetadata")
 }
 
 private fun collectModuleDiagnostics(project: Project, metrics: BuildMetricsSnapshot?): ModuleDiagnostics {
