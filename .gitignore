@@ -23,7 +23,6 @@
 .gradle/
 build/
 **/build/
-!gradle/wrapper/gradle-wrapper.jar
 
 # Ignore Gradle local configs
 local.properties

@@ -18,4 +18,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "android-doctor-architecture-test-app"
 
-include(":app", ":feature-chat")
+include(":app", ":feature-chat", ":feature-payments", ":core-data", ":legacy-mvc")

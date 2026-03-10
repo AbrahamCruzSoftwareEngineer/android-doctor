@@ -45,6 +45,8 @@ extensions.configure<KotlinJvmProjectExtension>("kotlin") {
 dependencies {
     implementation(gradleApi())
     implementation(localGroovy())
+
+    testImplementation(kotlin("test"))
 }
 
 gradlePlugin {

@@ -65,3 +65,8 @@ android-doctor/
 ├─ docs/          # Roadmap, vision, architecture, schema
 ├─ samples/       # Sample Android projects
 └─ README.md      # You are here
+```
+
+### Sandbox test app
+
+The repository includes `samples/android-doctor-architecture-test-app`, a purposely mixed-architecture Android app (MVC + MVP + MVVM + MVI signals) with known smells and legacy dependencies so AndroidDoctor can be validated against realistic findings.

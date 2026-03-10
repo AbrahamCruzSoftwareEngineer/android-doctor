@@ -9,6 +9,7 @@ object HtmlSections {
         return listOf(
             HtmlComponents.overviewCard(report, showGenerated = false),
             HtmlComponents.scoresCard(report),
+            HtmlComponents.testingCoverageCard(report),
             HtmlComponents.diagnosticsSummaryCard(report),
             HtmlComponents.actionsCard(report),
             HtmlComponents.upgradeBanner()
@@ -21,12 +22,14 @@ object HtmlSections {
             HtmlComponents.chartsCard("Impact Summary", "impactChart"),
             HtmlComponents.chartsCard("Build Time Mix", "buildTimeChart"),
             HtmlComponents.chartsCard("Build Cache Activity", "buildCacheChart"),
+            HtmlComponents.chartsCard("Test Coverage (Unit vs UI)", "testResultsChart"),
             HtmlComponents.chartsCard("Score Radar", "radarChart", fullWidth = true)
         )
 
         return listOf(
             HtmlComponents.overviewCard(report, showGenerated = true),
             HtmlComponents.scoresCard(report),
+            HtmlComponents.testingCoverageCard(report),
             HtmlComponents.buildPerformanceCard(report),
             HtmlComponents.configurationCacheCard(report),
             HtmlComponents.actionsCard(report),

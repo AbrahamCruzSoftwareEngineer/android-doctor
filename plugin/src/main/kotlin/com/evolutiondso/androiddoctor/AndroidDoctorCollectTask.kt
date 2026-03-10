@@ -74,6 +74,15 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         val agpCompileSource = readAgpCompileSourceCompatibilityOrNull(project)
         val mismatch =
             detectJvmTargetMismatch(kotlinJvmTarget, javaTargetCompatibility, agpCompileTarget)
+        val architectureDiagnostics = ArchitectureAnalyzer().analyze(project)
+
+        val buildMetrics = metricsService.orNull?.snapshot()
+        val dependencyDiagnostics = collectDependencyDiagnostics(project)
+        val moduleDiagnostics = collectModuleDiagnostics(project, buildMetrics)
+        val annotationDiagnostics = collectAnnotationDiagnostics(project, buildMetrics)
+        val testDiagnostics = collectTestDiagnostics(project, buildMetrics)
+        val environmentDiagnostics = collectEnvironmentDiagnostics()
+        val configCacheRequested = readConfigurationCacheRequestedOrNull(project)
 
         // Compute scores
         val scores = computeScores(
@@ -81,7 +90,9 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
             usesKapt = usesKapt,
             moduleCount = moduleCount,
             configurationCacheEnabled = configurationCacheEnabled,
-            composeEnabled = composeEnabled
+            composeEnabled = composeEnabled,
+            architectureDiagnostics = architectureDiagnostics,
+            testDiagnostics = testDiagnostics
         )
 
         // Known plugins
@@ -100,12 +111,8 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         val appliedKnownPluginIds = knownPluginIds.filter { project.plugins.hasPlugin(it) }
         val appliedKnownPluginsJson = appliedKnownPluginIds.joinToString { "\"$it\"" }
 
-        val buildMetrics = metricsService.orNull?.snapshot()
-        val dependencyDiagnostics = collectDependencyDiagnostics(project)
-        val moduleDiagnostics = collectModuleDiagnostics(project, buildMetrics)
-        val annotationDiagnostics = collectAnnotationDiagnostics(project, buildMetrics)
-        val environmentDiagnostics = collectEnvironmentDiagnostics()
-        val configCacheRequested = readConfigurationCacheRequestedOrNull(project)
+        val analyzedProjectPathsJson = project.rootProject.allprojects.joinToString(", ") { "\"${it.path}\"" }
+        val analysisRootDir = project.rootProject.projectDir.absolutePath
 
         // Recommended actions
         val actions = buildTopActions(
@@ -128,7 +135,9 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
             annotationDiagnostics = annotationDiagnostics,
             moduleDiagnostics = moduleDiagnostics,
             buildMetrics = buildMetrics,
-            environmentDiagnostics = environmentDiagnostics
+            environmentDiagnostics = environmentDiagnostics,
+            testDiagnostics = testDiagnostics,
+            architectureDiagnostics = architectureDiagnostics
         )
 
         val actionsJson = actionsToJson(actions)
@@ -172,7 +181,12 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
   },
   "scores": {
     "buildHealth": ${scores.buildHealth},
-    "modernization": ${scores.modernization}
+    "modernization": ${scores.modernization},
+    "testingOverall": ${testDiagnostics.overallScore},
+    "unitTestCoverage": ${testDiagnostics.unitCoverageScore},
+    "uiTestCoverage": ${testDiagnostics.uiCoverageScore},
+    "buildHealthSummary": ${stringListToJson(scores.buildHealthSummary)},
+    "modernizationSummary": ${stringListToJson(scores.modernizationSummary)}
   },
   "performance": {
     "configurationMs": ${buildMetrics?.configurationDurationMs ?: "null"},
@@ -224,7 +238,14 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
     }
   },
   "modulesDiagnostics": ${moduleDiagnostics.toJson()},
+  "analysisScope": {
+    "rootProjectDir": ${quote(analysisRootDir)},
+    "analyzedProjects": [ $analyzedProjectPathsJson ],
+    "analyzesAllRootProjects": true
+  },
+  "architecture": ${architectureDiagnostics.toJson()},
   "annotationProcessing": ${annotationDiagnostics.toJson()},
+  "tests": ${testDiagnostics.toJson()},
   "actions": $actionsJson,
   "plugins": {
     "appliedKnownPluginIds": [ $appliedKnownPluginsJson ]
@@ -249,7 +270,9 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
 
 private data class Scores(
     val buildHealth: Int,
-    val modernization: Int
+    val modernization: Int,
+    val buildHealthSummary: List<String>,
+    val modernizationSummary: List<String>
 )
 
 private fun computeScores(
@@ -258,51 +281,88 @@ private fun computeScores(
     moduleCount: Int,
     configurationCacheEnabled: Boolean?,
     composeEnabled: Boolean?,
-    architectureDiagnostics: ArchitectureDiagnostics
+    architectureDiagnostics: ArchitectureDiagnostics,
+    testDiagnostics: TestDiagnostics
 ): Scores {
     var build = 100
+    val buildNotes = mutableListOf<String>()
 
     when (configurationCacheEnabled) {
-        true -> Unit
-        false -> build -= 10
-        null -> build -= 3
+        true -> buildNotes += "+0 Configuration cache enabled"
+        false -> {
+            build -= 10
+            buildNotes += "-10 Configuration cache disabled"
+        }
+        null -> {
+            build -= 3
+            buildNotes += "-3 Configuration cache unknown"
+        }
     }
 
-    if (usesKapt) build -= 20
-    if (moduleCount <= 1) build -= 10
+    if (usesKapt) { build -= 20; buildNotes += "-20 kapt overhead" }
+    if (moduleCount <= 1) { build -= 10; buildNotes += "-10 single-module layout" }
+
+    if (testDiagnostics.overallScore < 70) { val delta=((70 - testDiagnostics.overallScore) / 2); build -= delta; buildNotes += "-$delta low testing score (${testDiagnostics.overallScore})" }
+    if (testDiagnostics.unitCoverageScore == 0 && testDiagnostics.uiCoverageScore == 0) { build -= 20; buildNotes += "-20 no unit/UI test coverage" }
+
     build = build.coerceIn(0, 100)
 
     var modern = 100
+    val modernizationNotes = mutableListOf<String>()
 
     when (configurationCacheEnabled) {
-        true -> Unit
-        false -> modern -= 5
-        null -> modern -= 2
+        true -> modernizationNotes += "+0 Configuration cache enabled"
+        false -> {
+            modern -= 5
+            modernizationNotes += "-5 Configuration cache disabled"
+        }
+        null -> {
+            modern -= 2
+            modernizationNotes += "-2 Configuration cache unknown"
+        }
     }
 
-    if (usesKapt) modern -= 10
+    if (usesKapt) { modern -= 10; modernizationNotes += "-10 kapt instead of modern processors" }
 
     if (isAndroidProject) {
         when (composeEnabled) {
             true -> Unit
-            false -> modern -= 10
-            null -> modern -= 3
+            false -> { modern -= 10; modernizationNotes += "-10 Compose disabled" }
+            null -> { modern -= 3; modernizationNotes += "-3 Compose status unknown" }
         }
     }
 
     if (architectureDiagnostics.mvvm > 0) {
         modern += 20
+        modernizationNotes += "+20 MVVM adoption signal"
     }
     if (architectureDiagnostics.mvi > 0) {
         modern += 15
+        modernizationNotes += "+15 MVI adoption signal"
     }
     if (architectureDiagnostics.violations.any { it.type == "MissingDomainLayer" }) {
         modern -= 20
+        modernizationNotes += "-20 missing domain layer"
     }
+    if (architectureDiagnostics.violations.any { it.type == "ArchitectureInconsistency" }) {
+        modern -= 25
+        modernizationNotes += "-25 mixed architectures detected (high risk)"
+    }
+
+    if (testDiagnostics.overallScore < 60) { val delta=((60 - testDiagnostics.overallScore) / 2); modern -= delta; modernizationNotes += "-$delta low testing score (${testDiagnostics.overallScore})" }
+    if (testDiagnostics.modulesWithUiTests == 0) { modern -= 8; modernizationNotes += "-8 no UI tests across modules" }
 
     modern = modern.coerceIn(0, 100)
 
-    return Scores(buildHealth = build, modernization = modern)
+    val buildSummary = if (buildNotes.isEmpty()) listOf("No build-health penalties applied") else buildNotes
+    val modernizationSummary = if (modernizationNotes.isEmpty()) listOf("No modernization penalties applied") else modernizationNotes
+
+    return Scores(
+        buildHealth = build,
+        modernization = modern,
+        buildHealthSummary = buildSummary,
+        modernizationSummary = modernizationSummary
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -342,7 +402,9 @@ private fun buildTopActions(
     annotationDiagnostics: AnnotationDiagnostics,
     moduleDiagnostics: ModuleDiagnostics,
     buildMetrics: BuildMetricsSnapshot?,
-    environmentDiagnostics: EnvironmentDiagnostics
+    environmentDiagnostics: EnvironmentDiagnostics,
+    testDiagnostics: TestDiagnostics,
+    architectureDiagnostics: ArchitectureDiagnostics
 ): List<Action> {
 
     val actions = mutableListOf<Action>()
@@ -356,6 +418,45 @@ private fun buildTopActions(
     val lowRam = environmentDiagnostics.availableRamMb < 8192
     val hasTimingData = executionMs != null || configMs != null || buildMetrics?.topLongestTasks?.isNotEmpty() == true
     val hasCacheStats = cacheTotal > 0
+
+    if (testDiagnostics.overallScore < 60) {
+        actions += Action(
+            id = "INCREASE_TEST_COVERAGE",
+            priority = 1,
+            severity = "HIGH",
+            effort = "M",
+            title = "Increase unit and UI test coverage",
+            why = "Testing score is ${testDiagnostics.overallScore}/100, which increases release risk and regression probability.",
+            how = "Add unit tests for business logic and UI/integration tests for critical user journeys in each feature module.",
+            impact = Impact(12, 6)
+        )
+    }
+
+    if (testDiagnostics.modulesWithUiTests == 0) {
+        actions += Action(
+            id = "ADD_UI_TESTS",
+            priority = 2,
+            severity = "MEDIUM",
+            effort = "M",
+            title = "Add UI instrumentation coverage",
+            why = "No modules currently include androidTest sources.",
+            how = "Add smoke and critical path instrumentation tests under src/androidTest for app and key feature modules.",
+            impact = Impact(6, 5)
+        )
+    }
+
+    if (architectureDiagnostics.violations.any { it.type == "ArchitectureInconsistency" }) {
+        actions += Action(
+            id = "STOP_MIXED_ARCHITECTURES",
+            priority = 1,
+            severity = "HIGH",
+            effort = "M",
+            title = "Stop mixing architecture patterns across modules",
+            why = "Mixed architectures (MVC/MVP/MVVM/MVI) were detected. This creates maintainability, onboarding, and regression risks.",
+            how = "Choose a target architecture (MVVM or MVI), define migration guidelines, and refactor legacy modules incrementally.",
+            impact = Impact(10, 14)
+        )
+    }
 
     if (moduleCount <= 1 && (executionMs ?: 0) > 120_000) {
         actions += Action(
@@ -833,6 +934,10 @@ private fun quote(value: String?): String = value?.let { "\"${esc(it)}\"" } ?: "
 
 private fun esc(value: String): String = value.replace("\\", "\\\\").replace("\"", "\\\"")
 
+private fun stringListToJson(values: List<String>): String {
+    return values.joinToString(prefix = "[", postfix = "]") { value -> "\"${esc(value)}\"" }
+}
+
 // ---------------------------------------------------------------------------
 // Reflection helpers
 // ---------------------------------------------------------------------------
@@ -1127,6 +1232,95 @@ private data class EnvironmentDiagnostics(
     }
 }
 
+private data class TestDiagnostics(
+    val moduleCount: Int,
+    val modulesWithUnitTests: Int,
+    val modulesWithUiTests: Int,
+    val unitTestFiles: Int,
+    val uiTestFiles: Int,
+    val executedUnitTestTasks: Int,
+    val executedUiTestTasks: Int,
+    val unitCoverageScore: Int,
+    val uiCoverageScore: Int,
+    val overallScore: Int
+) {
+    fun toJson(): String {
+        return """
+        {
+          "moduleCount": $moduleCount,
+          "modulesWithUnitTests": $modulesWithUnitTests,
+          "modulesWithUiTests": $modulesWithUiTests,
+          "unitTestFiles": $unitTestFiles,
+          "uiTestFiles": $uiTestFiles,
+          "executedUnitTestTasks": $executedUnitTestTasks,
+          "executedUiTestTasks": $executedUiTestTasks,
+          "unitCoverageScore": $unitCoverageScore,
+          "uiCoverageScore": $uiCoverageScore,
+          "overallScore": $overallScore
+        }
+        """.trimIndent()
+    }
+}
+
+private fun collectTestDiagnostics(project: Project, metrics: BuildMetricsSnapshot?): TestDiagnostics {
+    val modules = project.rootProject.subprojects
+    val moduleCount = modules.size.coerceAtLeast(1)
+
+    fun countTestFiles(module: Project, sourceSet: String): Int {
+        val dir = module.projectDir.resolve("src/$sourceSet")
+        if (!dir.exists()) return 0
+        return module.fileTree(dir).matching { pattern ->
+            pattern.include("**/*.kt", "**/*.java")
+        }.files.size
+    }
+
+    var modulesWithUnit = 0
+    var modulesWithUi = 0
+    var unitFiles = 0
+    var uiFiles = 0
+
+    modules.forEach { module ->
+        val moduleUnitFiles = countTestFiles(module, "test")
+        val moduleUiFiles = countTestFiles(module, "androidTest")
+        if (moduleUnitFiles > 0) modulesWithUnit++
+        if (moduleUiFiles > 0) modulesWithUi++
+        unitFiles += moduleUnitFiles
+        uiFiles += moduleUiFiles
+    }
+
+    val timings = metrics?.taskDurations.orEmpty()
+    val executedUnitTasks = timings.count { timing ->
+        val task = timing.path.lowercase()
+        !timing.skipped && task.contains("test") && !task.contains("androidtest") && !task.contains("connected")
+    }
+    val executedUiTasks = timings.count { timing ->
+        val task = timing.path.lowercase()
+        !timing.skipped && (task.contains("androidtest") || task.contains("connected"))
+    }
+
+    val unitModuleCoverage = (modulesWithUnit * 100) / moduleCount
+    val uiModuleCoverage = (modulesWithUi * 100) / moduleCount
+    val unitExecutionBoost = (executedUnitTasks * 5).coerceAtMost(20)
+    val uiExecutionBoost = (executedUiTasks * 8).coerceAtMost(20)
+
+    val unitScore = (unitModuleCoverage + unitExecutionBoost).coerceIn(0, 100)
+    val uiScore = (uiModuleCoverage + uiExecutionBoost).coerceIn(0, 100)
+    val overallScore = ((unitScore * 0.6) + (uiScore * 0.4)).toInt().coerceIn(0, 100)
+
+    return TestDiagnostics(
+        moduleCount = moduleCount,
+        modulesWithUnitTests = modulesWithUnit,
+        modulesWithUiTests = modulesWithUi,
+        unitTestFiles = unitFiles,
+        uiTestFiles = uiFiles,
+        executedUnitTestTasks = executedUnitTasks,
+        executedUiTestTasks = executedUiTasks,
+        unitCoverageScore = unitScore,
+        uiCoverageScore = uiScore,
+        overallScore = overallScore
+    )
+}
+
 private fun collectDependencyDiagnostics(project: Project): DependencyDiagnostics {
     val duplicates = mutableListOf<DependencyDuplicate>()
     val outdated = mutableListOf<DependencyOutdated>()
@@ -1135,42 +1329,60 @@ private fun collectDependencyDiagnostics(project: Project): DependencyDiagnostic
     val resolvedVersions = mutableMapOf<String, MutableSet<String>>()
 
     project.rootProject.allprojects.forEach { module ->
-        module.configurations.filter { it.isCanBeResolved }.forEach { configuration ->
-            val declared = configuration.dependencies
-                .filterIsInstance<org.gradle.api.artifacts.ExternalModuleDependency>()
-                .mapNotNull { dep ->
-                    val group = dep.group ?: return@mapNotNull null
-                    val name = dep.name
-                    val version = dep.version
-                    Triple(group, name, version)
+        module.configurations
+            .filter { it.isCanBeResolved && shouldAnalyzeResolvedConfiguration(it.name) }
+            .forEach { configuration ->
+                val declared = configuration.dependencies
+                    .filterIsInstance<org.gradle.api.artifacts.ExternalModuleDependency>()
+                    .mapNotNull { dep ->
+                        val group = dep.group ?: return@mapNotNull null
+                        val name = dep.name
+                        val version = dep.version
+                        Triple(group, name, version)
+                    }
+
+                val resolved = runCatching {
+                    configuration.incoming.resolutionResult.allComponents
+                        .mapNotNull { component ->
+                            val id = component.id as? org.gradle.api.artifacts.component.ModuleComponentIdentifier
+                                ?: return@mapNotNull null
+                            Triple(id.group, id.module, id.version)
+                        }
+                }.getOrElse {
+                    project.logger.debug(
+                        "AndroidDoctor: skipping dependency resolution for ${module.path}:${configuration.name} (${it.message})"
+                    )
+                    emptyList()
                 }
 
-            val resolved = configuration.incoming.resolutionResult.allComponents
-                .mapNotNull { component ->
-                    val id = component.id as? org.gradle.api.artifacts.component.ModuleComponentIdentifier
-                        ?: return@mapNotNull null
-                    Triple(id.group, id.module, id.version)
+                if (resolved.isNotEmpty()) {
+                    resolved.forEach { (group, name, version) ->
+                        resolvedVersions.getOrPut("$group:$name") { mutableSetOf() }.add(version)
+                    }
+
+                    val resolvedKeys = resolved.map { "${it.first}:${it.second}" }.toSet()
+                    declared.forEach { (group, name, version) ->
+                        if ("$group:$name" !in resolvedKeys) {
+                            unused += DependencyUnused(group, name, version, configuration.name)
+                        }
+                    }
                 }
 
-            resolved.forEach { (group, name, version) ->
-                resolvedVersions.getOrPut("$group:$name") { mutableSetOf() }.add(version)
+                runCatching {
+                    configuration.resolvedConfiguration.lenientConfiguration.artifacts
+                }.getOrElse {
+                    project.logger.debug(
+                        "AndroidDoctor: skipping artifact sizing for ${module.path}:${configuration.name} (${it.message})"
+                    )
+                    emptySet()
+                }.forEach { artifact ->
+                    val id = artifact.moduleVersion.id
+                    val size = artifact.file.length()
+                    if (size > 5L * 1024 * 1024) {
+                        heavy += DependencyHeavy(id.group, id.name, id.version, size)
+                    }
+                }
             }
-
-            val resolvedKeys = resolved.map { "${it.first}:${it.second}" }.toSet()
-            declared.forEach { (group, name, version) ->
-                if ("$group:$name" !in resolvedKeys) {
-                    unused += DependencyUnused(group, name, version, configuration.name)
-                }
-            }
-
-            configuration.resolvedConfiguration.lenientConfiguration.artifacts.forEach { artifact ->
-                val id = artifact.moduleVersion.id
-                val size = artifact.file.length()
-                if (size > 5L * 1024 * 1024) {
-                    heavy += DependencyHeavy(id.group, id.name, id.version, size)
-                }
-            }
-        }
     }
 
     resolvedVersions.forEach { (module, versions) ->
@@ -1185,6 +1397,17 @@ private fun collectDependencyDiagnostics(project: Project): DependencyDiagnostic
     }
 
     return DependencyDiagnostics(duplicates, outdated, unused, heavy)
+}
+
+
+private fun shouldAnalyzeResolvedConfiguration(configurationName: String): Boolean {
+    val name = configurationName.lowercase()
+    if (name.contains("androidtest") || name.contains("unittest") || name.startsWith("test")) return false
+    if (name.contains("lint") || name.contains("detachedconfiguration") || name.contains("kotlincompilerplugin")) return false
+    return name.contains("compileclasspath") ||
+        name.contains("runtimeclasspath") ||
+        name.endsWith("implementationdependenciesmetadata") ||
+        name.endsWith("apidependenciesmetadata")
 }
 
 private fun collectModuleDiagnostics(project: Project, metrics: BuildMetricsSnapshot?): ModuleDiagnostics {

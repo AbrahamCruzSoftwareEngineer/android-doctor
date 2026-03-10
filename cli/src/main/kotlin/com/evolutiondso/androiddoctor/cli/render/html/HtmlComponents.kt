@@ -40,6 +40,10 @@ object HtmlComponents {
     fun scoresCard(report: AndroidDoctorReport): String {
         val build = report.scores?.buildHealth ?: 0
         val modern = report.scores?.modernization ?: 0
+        val buildSummary = report.scores?.buildHealthSummary.orEmpty().take(4)
+        val modernizationSummary = report.scores?.modernizationSummary.orEmpty().take(4)
+        val buildSummaryHtml = if (buildSummary.isEmpty()) "" else buildSummary.joinToString(separator = "", prefix = "<ul class=\"score-notes\">", postfix = "</ul>") { "<li>$it</li>" }
+        val modernizationSummaryHtml = if (modernizationSummary.isEmpty()) "" else modernizationSummary.joinToString(separator = "", prefix = "<ul class=\"score-notes\">", postfix = "</ul>") { "<li>$it</li>" }
 
         return """
         <section class="card">
@@ -49,11 +53,13 @@ object HtmlComponents {
                     <div class="score-label">Build Health</div>
                     <div class="score-value">$build</div>
                     <div class="score-max">/ 100</div>
+                    $buildSummaryHtml
                 </div>
                 <div class="score-tile">
                     <div class="score-label">Modernization</div>
                     <div class="score-value">$modern</div>
                     <div class="score-max">/ 100</div>
+                    $modernizationSummaryHtml
                 </div>
             </div>
         </section>
@@ -164,6 +170,51 @@ object HtmlComponents {
                 <div><strong>Config Cache:</strong> $configCacheRequested</div>
                 <div><strong>Dependencies:</strong> $depSummary</div>
                 <div><strong>Environment:</strong> $ci</div>
+            </div>
+        </section>
+        """.trimIndent()
+    }
+
+    fun testingCoverageCard(report: AndroidDoctorReport): String {
+        val tests = report.tests
+        val moduleCount = tests?.moduleCount ?: 0
+        val modulesWithUnit = tests?.modulesWithUnitTests ?: 0
+        val modulesWithUi = tests?.modulesWithUiTests ?: 0
+        val unitFiles = tests?.unitTestFiles ?: 0
+        val uiFiles = tests?.uiTestFiles ?: 0
+        val executedUnitTasks = tests?.executedUnitTestTasks ?: 0
+        val executedUiTasks = tests?.executedUiTestTasks ?: 0
+        val unitScore = tests?.unitCoverageScore ?: report.scores?.unitTestCoverage ?: 0
+        val uiScore = tests?.uiCoverageScore ?: report.scores?.uiTestCoverage ?: 0
+        val overallScore = tests?.overallScore ?: report.scores?.testingOverall ?: 0
+
+        return """
+        <section class="card">
+            <h2>Testing Coverage</h2>
+            <div class="score-grid">
+                <div class="score-tile">
+                    <div class="score-label">Unit Test Coverage</div>
+                    <div class="score-value">$unitScore</div>
+                    <div class="score-max">/ 100</div>
+                </div>
+                <div class="score-tile">
+                    <div class="score-label">UI Test Coverage</div>
+                    <div class="score-value">$uiScore</div>
+                    <div class="score-max">/ 100</div>
+                </div>
+                <div class="score-tile">
+                    <div class="score-label">Overall Testing Score</div>
+                    <div class="score-value">$overallScore</div>
+                    <div class="score-max">/ 100</div>
+                </div>
+            </div>
+            <div class="info-grid" style="margin-top: 14px;">
+                <div><strong>Modules with Unit Tests:</strong> $modulesWithUnit / $moduleCount</div>
+                <div><strong>Modules with UI Tests:</strong> $modulesWithUi / $moduleCount</div>
+                <div><strong>Unit Test Files:</strong> $unitFiles</div>
+                <div><strong>UI Test Files:</strong> $uiFiles</div>
+                <div><strong>Executed Unit Test Tasks:</strong> $executedUnitTasks</div>
+                <div><strong>Executed UI Test Tasks:</strong> $executedUiTasks</div>
             </div>
         </section>
         """.trimIndent()
