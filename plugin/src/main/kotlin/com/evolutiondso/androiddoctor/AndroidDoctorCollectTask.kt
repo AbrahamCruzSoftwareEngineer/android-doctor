@@ -76,6 +76,14 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
             detectJvmTargetMismatch(kotlinJvmTarget, javaTargetCompatibility, agpCompileTarget)
         val architectureDiagnostics = ArchitectureAnalyzer().analyze(project)
 
+        val buildMetrics = metricsService.orNull?.snapshot()
+        val dependencyDiagnostics = collectDependencyDiagnostics(project)
+        val moduleDiagnostics = collectModuleDiagnostics(project, buildMetrics)
+        val annotationDiagnostics = collectAnnotationDiagnostics(project, buildMetrics)
+        val testDiagnostics = collectTestDiagnostics(project, buildMetrics)
+        val environmentDiagnostics = collectEnvironmentDiagnostics()
+        val configCacheRequested = readConfigurationCacheRequestedOrNull(project)
+
         // Compute scores
         val scores = computeScores(
             isAndroidProject = isAndroidProject,
@@ -83,7 +91,8 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
             moduleCount = moduleCount,
             configurationCacheEnabled = configurationCacheEnabled,
             composeEnabled = composeEnabled,
-            architectureDiagnostics = architectureDiagnostics
+            architectureDiagnostics = architectureDiagnostics,
+            testDiagnostics = testDiagnostics
         )
 
         // Known plugins
@@ -101,14 +110,6 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
 
         val appliedKnownPluginIds = knownPluginIds.filter { project.plugins.hasPlugin(it) }
         val appliedKnownPluginsJson = appliedKnownPluginIds.joinToString { "\"$it\"" }
-
-        val buildMetrics = metricsService.orNull?.snapshot()
-        val dependencyDiagnostics = collectDependencyDiagnostics(project)
-        val moduleDiagnostics = collectModuleDiagnostics(project, buildMetrics)
-        val annotationDiagnostics = collectAnnotationDiagnostics(project, buildMetrics)
-        val testDiagnostics = collectTestDiagnostics(project, buildMetrics)
-        val environmentDiagnostics = collectEnvironmentDiagnostics()
-        val configCacheRequested = readConfigurationCacheRequestedOrNull(project)
 
         val analyzedProjectPathsJson = project.rootProject.allprojects.joinToString(", ") { "\"${it.path}\"" }
         val analysisRootDir = project.rootProject.projectDir.absolutePath
@@ -134,7 +135,8 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
             annotationDiagnostics = annotationDiagnostics,
             moduleDiagnostics = moduleDiagnostics,
             buildMetrics = buildMetrics,
-            environmentDiagnostics = environmentDiagnostics
+            environmentDiagnostics = environmentDiagnostics,
+            testDiagnostics = testDiagnostics
         )
 
         val actionsJson = actionsToJson(actions)
@@ -274,7 +276,8 @@ private fun computeScores(
     moduleCount: Int,
     configurationCacheEnabled: Boolean?,
     composeEnabled: Boolean?,
-    architectureDiagnostics: ArchitectureDiagnostics
+    architectureDiagnostics: ArchitectureDiagnostics,
+    testDiagnostics: TestDiagnostics
 ): Scores {
     var build = 100
 
@@ -286,6 +289,10 @@ private fun computeScores(
 
     if (usesKapt) build -= 20
     if (moduleCount <= 1) build -= 10
+
+    if (testDiagnostics.overallScore < 70) build -= ((70 - testDiagnostics.overallScore) / 2)
+    if (testDiagnostics.unitCoverageScore == 0 && testDiagnostics.uiCoverageScore == 0) build -= 20
+
     build = build.coerceIn(0, 100)
 
     var modern = 100
@@ -315,6 +322,9 @@ private fun computeScores(
     if (architectureDiagnostics.violations.any { it.type == "MissingDomainLayer" }) {
         modern -= 20
     }
+
+    if (testDiagnostics.overallScore < 60) modern -= ((60 - testDiagnostics.overallScore) / 2)
+    if (testDiagnostics.modulesWithUiTests == 0) modern -= 8
 
     modern = modern.coerceIn(0, 100)
 
@@ -358,7 +368,8 @@ private fun buildTopActions(
     annotationDiagnostics: AnnotationDiagnostics,
     moduleDiagnostics: ModuleDiagnostics,
     buildMetrics: BuildMetricsSnapshot?,
-    environmentDiagnostics: EnvironmentDiagnostics
+    environmentDiagnostics: EnvironmentDiagnostics,
+    testDiagnostics: TestDiagnostics
 ): List<Action> {
 
     val actions = mutableListOf<Action>()
@@ -372,6 +383,32 @@ private fun buildTopActions(
     val lowRam = environmentDiagnostics.availableRamMb < 8192
     val hasTimingData = executionMs != null || configMs != null || buildMetrics?.topLongestTasks?.isNotEmpty() == true
     val hasCacheStats = cacheTotal > 0
+
+    if (testDiagnostics.overallScore < 60) {
+        actions += Action(
+            id = "INCREASE_TEST_COVERAGE",
+            priority = 1,
+            severity = "HIGH",
+            effort = "M",
+            title = "Increase unit and UI test coverage",
+            why = "Testing score is ${testDiagnostics.overallScore}/100, which increases release risk and regression probability.",
+            how = "Add unit tests for business logic and UI/integration tests for critical user journeys in each feature module.",
+            impact = Impact(12, 6)
+        )
+    }
+
+    if (testDiagnostics.modulesWithUiTests == 0) {
+        actions += Action(
+            id = "ADD_UI_TESTS",
+            priority = 2,
+            severity = "MEDIUM",
+            effort = "M",
+            title = "Add UI instrumentation coverage",
+            why = "No modules currently include androidTest sources.",
+            how = "Add smoke and critical path instrumentation tests under src/androidTest for app and key feature modules.",
+            impact = Impact(6, 5)
+        )
+    }
 
     if (moduleCount <= 1 && (executionMs ?: 0) > 120_000) {
         actions += Action(

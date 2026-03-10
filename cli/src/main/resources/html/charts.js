@@ -299,7 +299,7 @@ function createCharts(data) {
         const overallCoverage = tests.overallScore ?? 0;
         const hasTestData = hasRealData([unitCoverage, uiCoverage, overallCoverage]);
 
-        setNoData("testResultsChart", !hasTestData);
+        setNoData("testResultsChart", false);
 
         window.__ANDROID_DOCTOR_CHARTS__.push(new Chart(testResultsCanvas, {
             type: "bar",
