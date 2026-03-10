@@ -20,11 +20,19 @@ jobs:
           java-version: '17'
           cache: gradle
 
+      - name: Set up Gradle 8.5
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.5'
+
       - name: Verify public free guardrails
-        run: ./gradlew verifyPublicFreeOnly verifyNoPrivateCoordinates
+        run: python3 scripts/verify_public_guardrails.py
+
+      - name: Verify Gradle wrapper consistency
+        run: gradle verifyWrapperConsistency
 
       - name: Run check lifecycle
-        run: ./gradlew check
+        run: gradle check
 
       - name: Run doctorTest
-        run: ./gradlew doctorTest
+        run: gradle doctorTest

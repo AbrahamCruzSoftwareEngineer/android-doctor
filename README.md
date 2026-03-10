@@ -81,14 +81,17 @@ The repository includes `samples/android-doctor-architecture-test-app`, a purpos
 Before merging a release candidate from this public repository, run:
 
 ```bash
+python3 scripts/verify_public_guardrails.py
+./gradlew verifyWrapperConsistency
 ./gradlew check
 ./gradlew doctorTest
 ```
 
 A public release candidate is **blocked** if any of the following fail:
 
-- `verifyPublicFreeOnly` (premium/licensing token leak guard)
+- `verifyPublicFreeOnly` / `verifyNoPrivateCoordinates` (premium/licensing token leak and private-coordinate guards)
 - `:cli:jacocoTestCoverageVerification` (free-path coverage gate)
 - `doctorTest` (free HTML/Markdown workflow verification)
+- `verifyWrapperConsistency` (pinned wrapper distribution URL + validation checks)
 
 This gate helps ensure the public repository remains free-only and release-safe.
