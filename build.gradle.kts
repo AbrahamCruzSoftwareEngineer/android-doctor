@@ -237,7 +237,7 @@ tasks.register("verifyWrapperConsistency") {
     description = "Verifies Gradle wrapper properties are pinned for reproducible CI."
 
     val wrapperProperties = file("gradle/wrapper/gradle-wrapper.properties")
-    val requiredDistribution = "https\://services.gradle.org/distributions/gradle-8.5-bin.zip"
+    val requiredDistribution = "https://services.gradle.org/distributions/gradle-8.5-bin.zip"
 
     doLast {
         if (!wrapperProperties.exists()) {
