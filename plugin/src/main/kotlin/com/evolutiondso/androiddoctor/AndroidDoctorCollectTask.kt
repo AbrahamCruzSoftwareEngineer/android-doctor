@@ -74,6 +74,7 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
         val agpCompileSource = readAgpCompileSourceCompatibilityOrNull(project)
         val mismatch =
             detectJvmTargetMismatch(kotlinJvmTarget, javaTargetCompatibility, agpCompileTarget)
+        val architectureDiagnostics = ArchitectureAnalyzer().analyze(project)
 
         // Compute scores
         val scores = computeScores(
@@ -81,7 +82,8 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
             usesKapt = usesKapt,
             moduleCount = moduleCount,
             configurationCacheEnabled = configurationCacheEnabled,
-            composeEnabled = composeEnabled
+            composeEnabled = composeEnabled,
+            architectureDiagnostics = architectureDiagnostics
         )
 
         // Known plugins
@@ -224,6 +226,7 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
     }
   },
   "modulesDiagnostics": ${moduleDiagnostics.toJson()},
+  "architecture": ${architectureDiagnostics.toJson()},
   "annotationProcessing": ${annotationDiagnostics.toJson()},
   "actions": $actionsJson,
   "plugins": {

@@ -14,6 +14,12 @@ class AndroidDoctorPlugin : Plugin<Project> {
 
         target.gradle.addListener(metricsService.get())
 
+        val extension = target.extensions.create(
+            "androidDoctor",
+            AndroidDoctorExtension::class.java,
+            target.objects
+        )
+
         target.tasks.register(
             "androidDoctorCollect",
             AndroidDoctorCollectTask::class.java

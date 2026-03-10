@@ -63,32 +63,6 @@ object HtmlTemplates {
             }"""
         } ?: "[]"
 
-        val architectureViolationsJson = architecture?.violations?.joinToString(prefix = "[", postfix = "]") { violation ->
-            """{
-                "type": "${escapeJs(violation.type)}",
-                "file": "${escapeJs(violation.file)}",
-                "description": "${escapeJs(violation.description)}"
-            }"""
-        } ?: "[]"
-
-        val architectureFixesJson = architecture?.recommendedFixes?.joinToString(prefix = "[", postfix = "]") { fix ->
-            """{
-                "title": "${escapeJs(fix.title)}",
-                "description": "${escapeJs(fix.description)}"
-            }"""
-        } ?: "[]"
-
-        val tests = report.tests
-        val testsJson = tests?.let {
-            """{
-                "total": ${it.total ?: 0},
-                "passed": ${it.passed ?: 0},
-                "failed": ${it.failed ?: 0},
-                "skipped": ${it.skipped ?: 0},
-                "durationMs": ${it.durationMs ?: 0},
-                "uiTestDurationMs": ${it.uiTestDurationMs ?: 0}
-            }"""
-        } ?: "null"
 
         val dataJson = """
             window.__ANDROID_DOCTOR_DATA__ = {
