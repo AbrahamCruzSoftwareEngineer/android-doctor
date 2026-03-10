@@ -58,7 +58,7 @@ tasks.register("doctorTest") {
 
         banner("ANDROIDDOCTOR COMPLETE E2E TEST")
 
-        val reportJson = "samples/android-doctor-architecture-test-app/build/androidDoctor/report.json"
+        val reportJson = "samples/android-doctor-architecture-test-app/app/build/androidDoctor/report.json"
 
         // Step 1 — Basic build success (already handled by dependsOn)
         success("Plugin + CLI built successfully")
