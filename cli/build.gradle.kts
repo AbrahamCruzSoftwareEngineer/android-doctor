@@ -42,7 +42,6 @@ tasks.jacocoTestCoverageVerification {
                 "com.evolutiondso.androiddoctor.cli.render.html.HtmlSections",
                 "com.evolutiondso.androiddoctor.cli.render.html.HtmlTemplates",
                 "com.evolutiondso.androiddoctor.cli.render.html.HtmlGauge",
-                "com.evolutiondso.androiddoctor.cli.render.html.HtmlAssets"
             )
             limit {
                 counter = "LINE"
