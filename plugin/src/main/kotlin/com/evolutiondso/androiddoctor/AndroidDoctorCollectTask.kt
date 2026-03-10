@@ -183,7 +183,9 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
     "modernization": ${scores.modernization},
     "testingOverall": ${testDiagnostics.overallScore},
     "unitTestCoverage": ${testDiagnostics.unitCoverageScore},
-    "uiTestCoverage": ${testDiagnostics.uiCoverageScore}
+    "uiTestCoverage": ${testDiagnostics.uiCoverageScore},
+    "buildHealthSummary": ${stringListToJson(scores.buildHealthSummary)},
+    "modernizationSummary": ${stringListToJson(scores.modernizationSummary)}
   },
   "performance": {
     "configurationMs": ${buildMetrics?.configurationDurationMs ?: "null"},
@@ -267,7 +269,9 @@ abstract class AndroidDoctorCollectTask : DefaultTask() {
 
 private data class Scores(
     val buildHealth: Int,
-    val modernization: Int
+    val modernization: Int,
+    val buildHealthSummary: List<String>,
+    val modernizationSummary: List<String>
 )
 
 private fun computeScores(
@@ -280,55 +284,80 @@ private fun computeScores(
     testDiagnostics: TestDiagnostics
 ): Scores {
     var build = 100
+    val buildNotes = mutableListOf<String>()
 
     when (configurationCacheEnabled) {
-        true -> Unit
-        false -> build -= 10
-        null -> build -= 3
+        true -> buildNotes += "+0 Configuration cache enabled"
+        false -> {
+            build -= 10
+            buildNotes += "-10 Configuration cache disabled"
+        }
+        null -> {
+            build -= 3
+            buildNotes += "-3 Configuration cache unknown"
+        }
     }
 
-    if (usesKapt) build -= 20
-    if (moduleCount <= 1) build -= 10
+    if (usesKapt) { build -= 20; buildNotes += "-20 kapt overhead" }
+    if (moduleCount <= 1) { build -= 10; buildNotes += "-10 single-module layout" }
 
-    if (testDiagnostics.overallScore < 70) build -= ((70 - testDiagnostics.overallScore) / 2)
-    if (testDiagnostics.unitCoverageScore == 0 && testDiagnostics.uiCoverageScore == 0) build -= 20
+    if (testDiagnostics.overallScore < 70) { val delta=((70 - testDiagnostics.overallScore) / 2); build -= delta; buildNotes += "-$delta low testing score (${testDiagnostics.overallScore})" }
+    if (testDiagnostics.unitCoverageScore == 0 && testDiagnostics.uiCoverageScore == 0) { build -= 20; buildNotes += "-20 no unit/UI test coverage" }
 
     build = build.coerceIn(0, 100)
 
     var modern = 100
+    val modernizationNotes = mutableListOf<String>()
 
     when (configurationCacheEnabled) {
-        true -> Unit
-        false -> modern -= 5
-        null -> modern -= 2
+        true -> modernizationNotes += "+0 Configuration cache enabled"
+        false -> {
+            modern -= 5
+            modernizationNotes += "-5 Configuration cache disabled"
+        }
+        null -> {
+            modern -= 2
+            modernizationNotes += "-2 Configuration cache unknown"
+        }
     }
 
-    if (usesKapt) modern -= 10
+    if (usesKapt) { modern -= 10; modernizationNotes += "-10 kapt instead of modern processors" }
 
     if (isAndroidProject) {
         when (composeEnabled) {
             true -> Unit
-            false -> modern -= 10
-            null -> modern -= 3
+            false -> { modern -= 10; modernizationNotes += "-10 Compose disabled" }
+            null -> { modern -= 3; modernizationNotes += "-3 Compose status unknown" }
         }
     }
 
     if (architectureDiagnostics.mvvm > 0) {
         modern += 20
+        modernizationNotes += "+20 MVVM adoption signal"
     }
     if (architectureDiagnostics.mvi > 0) {
         modern += 15
+        modernizationNotes += "+15 MVI adoption signal"
     }
     if (architectureDiagnostics.violations.any { it.type == "MissingDomainLayer" }) {
         modern -= 20
+        modernizationNotes += "-20 missing domain layer"
     }
 
-    if (testDiagnostics.overallScore < 60) modern -= ((60 - testDiagnostics.overallScore) / 2)
-    if (testDiagnostics.modulesWithUiTests == 0) modern -= 8
+    if (testDiagnostics.overallScore < 60) { val delta=((60 - testDiagnostics.overallScore) / 2); modern -= delta; modernizationNotes += "-$delta low testing score (${testDiagnostics.overallScore})" }
+    if (testDiagnostics.modulesWithUiTests == 0) { modern -= 8; modernizationNotes += "-8 no UI tests across modules" }
 
     modern = modern.coerceIn(0, 100)
 
-    return Scores(buildHealth = build, modernization = modern)
+    val buildSummary = if (buildNotes.isEmpty()) listOf("No build-health penalties applied") else buildNotes
+    val modernizationSummary = if (modernizationNotes.isEmpty()) listOf("No modernization penalties applied") else modernizationNotes
+
+    return Scores(
+        buildHealth = build,
+        modernization = modern,
+        buildHealthSummary = buildSummary,
+        modernizationSummary = modernizationSummary
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -885,6 +914,10 @@ private fun tasksToJson(tasks: List<TaskTiming>): String {
 private fun quote(value: String?): String = value?.let { "\"${esc(it)}\"" } ?: "null"
 
 private fun esc(value: String): String = value.replace("\\", "\\\\").replace("\"", "\\\"")
+
+private fun stringListToJson(values: List<String>): String {
+    return values.joinToString(prefix = "[", postfix = "]") { value -> "\"${esc(value)}\"" }
+}
 
 // ---------------------------------------------------------------------------
 // Reflection helpers

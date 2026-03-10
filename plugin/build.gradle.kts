@@ -47,7 +47,6 @@ dependencies {
     implementation(localGroovy())
 
     testImplementation(kotlin("test"))
-    testImplementation("org.mockito:mockito-core:5.12.0")
 }
 
 gradlePlugin {

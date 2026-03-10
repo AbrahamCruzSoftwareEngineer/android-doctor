@@ -67,7 +67,9 @@ data class ScoresInfo(
     val modernization: Int? = null,
     val testingOverall: Int? = null,
     val unitTestCoverage: Int? = null,
-    val uiTestCoverage: Int? = null
+    val uiTestCoverage: Int? = null,
+    val buildHealthSummary: List<String>? = null,
+    val modernizationSummary: List<String>? = null
 )
 
 @Serializable

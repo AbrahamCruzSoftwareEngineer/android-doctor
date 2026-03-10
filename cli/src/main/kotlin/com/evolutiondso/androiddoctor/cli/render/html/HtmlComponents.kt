@@ -40,6 +40,10 @@ object HtmlComponents {
     fun scoresCard(report: AndroidDoctorReport): String {
         val build = report.scores?.buildHealth ?: 0
         val modern = report.scores?.modernization ?: 0
+        val buildSummary = report.scores?.buildHealthSummary.orEmpty().take(4)
+        val modernizationSummary = report.scores?.modernizationSummary.orEmpty().take(4)
+        val buildSummaryHtml = if (buildSummary.isEmpty()) "" else buildSummary.joinToString(separator = "", prefix = "<ul class=\"score-notes\">", postfix = "</ul>") { "<li>$it</li>" }
+        val modernizationSummaryHtml = if (modernizationSummary.isEmpty()) "" else modernizationSummary.joinToString(separator = "", prefix = "<ul class=\"score-notes\">", postfix = "</ul>") { "<li>$it</li>" }
 
         return """
         <section class="card">
@@ -49,11 +53,13 @@ object HtmlComponents {
                     <div class="score-label">Build Health</div>
                     <div class="score-value">$build</div>
                     <div class="score-max">/ 100</div>
+                    $buildSummaryHtml
                 </div>
                 <div class="score-tile">
                     <div class="score-label">Modernization</div>
                     <div class="score-value">$modern</div>
                     <div class="score-max">/ 100</div>
+                    $modernizationSummaryHtml
                 </div>
             </div>
         </section>
