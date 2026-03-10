@@ -13,11 +13,11 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicLong
 
-internal enum class CacheOutcome {
+enum class CacheOutcome {
     HIT, MISS, SKIPPED, NONE
 }
 
-internal fun classifyCacheOutcome(skipped: Boolean, didWork: Boolean, skipMessage: String?): CacheOutcome {
+fun classifyCacheOutcome(skipped: Boolean, didWork: Boolean, skipMessage: String?): CacheOutcome {
     return when {
         skipped && skipMessage.orEmpty().uppercase().contains("FROM-CACHE") -> CacheOutcome.HIT
         skipped -> CacheOutcome.SKIPPED
