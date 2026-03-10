@@ -60,9 +60,11 @@ It will **consume structured findings only** — the deterministic plugin remain
 
 ```text
 android-doctor/
+├─ core/          # Public shared model + neutral extension interfaces
 ├─ plugin/        # Gradle plugin (Collector)
-├─ cli/           # CLI Reporter            
-├─ docs/          # Roadmap, vision, architecture, schema
+├─ cli/           # Free CLI Reporter
+├─ docs/          # Roadmap, vision, architecture, split docs
+├─ .github/       # CI workflows (public release gate)
 ├─ samples/       # Sample Android projects
 └─ README.md      # You are here
 ```

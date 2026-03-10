@@ -78,16 +78,16 @@ Option A and Option C are compatible in practice. The key security property is *
 
 ## 3) Target Module Layout
 
-## Public repository (`android-doctor`)
+## Public repository (`android-doctor`) — current state
 
 - `:core`  
-  Analysis engine, report model (`AndroidDoctorReport`), extension interfaces.
-- `:cli-free`  
-  Free command-line app wiring + free renderers.
-- `:renderer-free`  
-  Basic HTML + Markdown output.
-- `:plugin` (optional during transition, then refactor into/onto `:core`)  
+  Shared report model (`AndroidDoctorReport`) + neutral extension interfaces.
+- `:plugin`  
   Gradle integration and report generation.
+- `:cli`  
+  Free command-line app wiring (terminal + HTML + Markdown).
+
+> Note: a future internal refactor may split `:cli` into finer modules (e.g., `:renderer-free`), but this is not required for security now that premium code has been removed from public source.
 
 ## Private repository (`android-doctor-premium`)
 
@@ -130,7 +130,7 @@ implementation("com.androiddoctor:renderer-free:<version>")
    - premium-specific branches/copy/assets in shared HTML templates
    - `LicenseValidator`
    - premium-only exports (e.g., PDF if designated premium)
-2. Replace with free-only wiring in `:cli-free`.
+2. Replace with free-only wiring in public CLI (currently `:cli`).
 3. Keep interfaces only; no premium concrete implementations in public code.
 
 ### Phase 2 — Create private premium repo
@@ -163,7 +163,7 @@ In public CI, enforce checks:
 ## Free user workflow
 
 - Run plugin analysis and generate `report.json`.
-- Use `cli-free` for:
+- Use `:cli` (public free CLI) for:
   - terminal summary
   - markdown report
   - basic HTML report
@@ -195,8 +195,9 @@ This preserves a common analysis pipeline and avoids duplicating core logic.
 
 ## 7) Immediate Next Actions
 
-1. Create `:core` and move `AndroidDoctorReport` + rendering/export interfaces.
-2. Rename current CLI path to `:cli-free` and strip all premium code.
-3. Remove `pdfbox` from public dependencies if PDF is premium-only.
-4. Stand up private `android-doctor-premium` repo and implement premium modules there.
-5. Add public CI leak-prevention checks before next release.
+- ✅ Create `:core` and move `AndroidDoctorReport` + rendering/export interfaces.
+- ✅ Strip premium classes/assets/licensing from public CLI wiring.
+- ✅ Remove `pdfbox` from public dependencies (PDF is no longer in public CLI).
+- ✅ Add public CI leak-prevention checks and release gate workflow.
+- ⏳ Next external step: stand up private `android-doctor-premium` repo and implement private premium modules there.
+- ⏳ Next external step: publish public/private artifacts and validate end-to-end private consumption.
